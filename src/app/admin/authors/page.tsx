@@ -28,11 +28,11 @@ export default async function AdminAuthorsPage() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Quản lý tác giả</h1>
-          <p className="mt-2 text-slate-300">Thêm và chỉnh sửa tác giả dùng trong catalog và recommendations.</p>
+          <h1 className="text-3xl font-bold">Управление авторами</h1>
+          <p className="mt-2 text-slate-300">Добавляйте и редактируйте авторов для каталога и recommendations.</p>
         </div>
         <Link href="/admin/authors/new" className="rounded-lg bg-cyan-400 px-4 py-3 font-medium text-slate-950">
-          Thêm tác giả
+          Добавить автора
         </Link>
       </div>
 
@@ -43,14 +43,14 @@ export default async function AdminAuthorsPage() {
               <div className="space-y-2">
                 <h2 className="text-xl font-semibold">{author.name}</h2>
                 <p className="text-sm text-slate-400">{author.slug}</p>
-                <p className="text-sm text-slate-300">Số sách liên kết: {author._count.books}</p>
+                <p className="text-sm text-slate-300">Связанных книг: {author._count.books}</p>
               </div>
               <div className="flex flex-wrap gap-3 md:justify-end">
                 <Link
                   href={`/admin/authors/${author.id}/edit`}
                   className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-100"
                 >
-                  Chỉnh sửa
+                  Редактировать
                 </Link>
                 <form
                   action={async () => {
@@ -67,9 +67,9 @@ export default async function AdminAuthorsPage() {
                   }}
                 >
                   <DeleteSubmitButton
-                    idleLabel="Xóa"
-                    pendingLabel="Đang xóa..."
-                    confirmMessage={`Xóa tác giả "${author.name}"?`}
+                    idleLabel="Удалить"
+                    pendingLabel="Удаление..."
+                    confirmMessage={`Удалить автора "${author.name}"?`}
                   />
                 </form>
               </div>

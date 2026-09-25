@@ -29,8 +29,8 @@ describe("AdminAuthorsPage", () => {
   it("shows the authors admin title", async () => {
     render(await AdminAuthorsPage());
 
-    expect(screen.getByRole("heading", { name: "Quản lý tác giả" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Управление авторами" })).toBeInTheDocument();
     expect(screen.getByText("Đon Norman")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Xóa" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Удалить" })).toBeInTheDocument();
   });
 });

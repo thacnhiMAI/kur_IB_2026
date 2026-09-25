@@ -52,12 +52,12 @@ export default async function EditAdminGenrePage({
     <section className="space-y-6">
       <AdminSectionNav current="genres" />
       <div>
-        <h1 className="text-3xl font-bold">Chỉnh sửa thể loại</h1>
-        <p className="mt-2 text-slate-300">Cập nhật genre để đồng bộ filter và phân nhóm sách.</p>
+        <h1 className="text-3xl font-bold">Редактирование жанра</h1>
+        <p className="mt-2 text-slate-300">Обновите жанр, чтобы синхронизировать фильтры и группировку книг.</p>
       </div>
       <TaxonomyForm
         action={updateGenre}
-        submitLabel="Lưu thay đổi"
+        submitLabel="Сохранить изменения"
         initialValues={{ name: genre.name, slug: genre.slug }}
       />
     </section>

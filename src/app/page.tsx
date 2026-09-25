@@ -18,8 +18,8 @@ export default function HomePage() {
         <div className="space-y-4">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Умная библиотека</h1>
           <p className="max-w-2xl text-lg leading-8 text-slate-300">
-            Каталог книг с персональными рекомендациями, отзывами, избранным и
-            фундаментом для AI-функций выпускного проекта.
+            Каталог книг с персональными рекомендациями, отзывами, избранным,
+            3D / AR-просмотром, голосовым поиском и PWA-режимом.
           </p>
         </div>
         <div className="flex flex-wrap gap-4">
@@ -40,12 +40,12 @@ export default function HomePage() {
 
       <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl shadow-cyan-950/20">
         <div className="space-y-4">
-          <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Что уже заложено</p>
+          <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Как использовать</p>
           <ul className="space-y-3 text-slate-200">
-            <li>Каталог с фильтрацией и карточками книг</li>
-            <li>Профиль читателя и избранное</li>
-            <li>Отзывы, история чтения и рекомендации</li>
-            <li>Подготовка к AI, AR, голосу и PWA</li>
+            <li>AI: откройте раздел «Рекомендации» после входа в аккаунт.</li>
+            <li>3D / AR: используйте кнопку `3D / AR` в карточке книги или на странице книги.</li>
+            <li>Голос: нажмите кнопку «Голос» в блоке поиска каталога.</li>
+            <li>PWA: установите сайт через меню браузера, офлайн-страницы уже работают.</li>
           </ul>
         </div>
       </div>

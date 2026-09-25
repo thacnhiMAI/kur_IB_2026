@@ -31,7 +31,7 @@ Deploy the Smart Library frontend and server runtime to Vercel while keeping Pos
 - `OPENAI_API_KEY`
 - `GIGACHAT_CLIENT_ID`
 - `GIGACHAT_CLIENT_SECRET`
-- `VERCEL_PROJECT_PRODUCTION_URL`
+- `VERCEL_PROJECT_PRODUCTION_URL` - optional fallback only. On Vercel, prefer the built-in system environment variable instead of creating it manually. If you set it outside Vercel, use only the host name, for example `smart-library.example`, without `https://`.
 
 ## Deployment Steps
 
@@ -49,5 +49,7 @@ Deploy the Smart Library frontend and server runtime to Vercel while keeping Pos
 ## Notes
 
 - The runtime already resolves site URLs with the order `NEXTAUTH_URL -> VERCEL_PROJECT_PRODUCTION_URL -> VERCEL_URL -> localhost`.
+- `NEXTAUTH_URL` should be a full origin such as `https://smart-library.example`.
+- `VERCEL_PROJECT_PRODUCTION_URL` and `VERCEL_URL` are host names only and should not include the `https://` scheme.
 - Recommendations continue to work through the fallback strategy when external AI credentials are not configured.
 - Keep local Docker variables only in local `.env` files; do not copy local container assumptions into production.

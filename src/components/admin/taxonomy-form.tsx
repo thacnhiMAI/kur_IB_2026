@@ -18,7 +18,7 @@ export function TaxonomyForm({
     <form action={action} className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6">
       <input
         name="name"
-        placeholder="Tên hiển thị"
+        placeholder="Отображаемое имя"
         defaultValue={initialValues?.name ?? ""}
         className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3"
       />

@@ -13,10 +13,10 @@ test("book detail opens ar route and shows a fallback-safe preview", async ({
 }) => {
   await gotoWithRetry(page, "/books/design-of-everyday-things");
 
-  await expect(page.getByRole("heading", { name: "AR Preview" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "3D / AR Preview" })).toBeVisible();
   await expect(page.getByTestId("book-ar-qr")).toBeVisible();
 
-  await page.getByRole("link", { name: "Открыть AR" }).click();
+  await page.getByRole("link", { name: "Открыть 3D / AR" }).click();
 
   await expect(page).toHaveURL(/\/ar\/books\/design-of-everyday-things/);
 

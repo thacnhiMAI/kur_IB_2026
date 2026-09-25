@@ -22,9 +22,10 @@ export default function SignInPage() {
   return (
     <section className="mx-auto max-w-md space-y-6">
       <div className="space-y-2 text-center">
-        <h1 className="text-3xl font-bold">Đăng nhập</h1>
+        <h1 className="text-3xl font-bold">Вход</h1>
         <p className="text-slate-300">
-          Vào nhanh bằng Gmail, hoặc dùng email và mật khẩu nếu bạn đã có tài khoản cũ.
+          Используйте значок почты для быстрого входа через Google или введите
+          email и пароль от существующего аккаунта.
         </p>
       </div>
 
@@ -33,7 +34,7 @@ export default function SignInPage() {
 
         <div className="flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-slate-500">
           <div className="h-px flex-1 bg-slate-800" />
-          <span>hoặc</span>
+          <span>или</span>
           <div className="h-px flex-1 bg-slate-800" />
         </div>
 
@@ -47,19 +48,19 @@ export default function SignInPage() {
           <input
             name="password"
             type="password"
-            placeholder="Mật khẩu"
+            placeholder="Пароль"
             className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3"
           />
           <button className="w-full rounded-lg bg-cyan-400 px-4 py-3 font-medium text-slate-950">
-            Đăng nhập bằng mật khẩu
+            Войти по паролю
           </button>
         </form>
       </div>
 
       <p className="text-center text-sm text-slate-400">
-        Chưa có tài khoản?{" "}
+        Нет аккаунта?{" "}
         <Link href="/auth/sign-up" className="text-cyan-300">
-          Dùng Gmail để tạo tài khoản
+          Регистрация
         </Link>
       </p>
     </section>

@@ -34,7 +34,7 @@ test("sign-up page offers Gmail signup path", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: /регистрация/i })).toBeVisible();
   await expect(
-    page.getByText(/không cần nhập mật khẩu thủ công/i)
+    page.getByText(/без отдельного пароля/i)
   ).toBeVisible();
 });
 
@@ -42,5 +42,5 @@ test("protected recommendations page redirects unauthenticated users to sign-in"
   await page.goto("/recommendations");
 
   await expect(page).toHaveURL(/\/auth\/sign-in/);
-  await expect(page.getByRole("heading", { name: /đăng nhập/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /вход/i })).toBeVisible();
 });

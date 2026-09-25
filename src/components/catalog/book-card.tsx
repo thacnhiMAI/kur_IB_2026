@@ -2,6 +2,8 @@ import React from "react";
 import Link from "next/link";
 import Image from "next/image";
 
+import { resolveBookImageSrc } from "@/lib/books/image-source";
+
 type BookCardProps = {
   id?: string;
   slug: string;
@@ -20,6 +22,31 @@ type BookCardProps = {
 const FALLBACK_COVER = "/covers/fallback-book.jpg";
 const DEFAULT_BOOK_COLOR = "#0F172A";
 
+function normalizeGenreTag(tag: string) {
+  const trimmed = tag.trim();
+
+  if (!trimmed || trimmed.includes("=") || trimmed.includes(":")) {
+    return null;
+  }
+
+  return trimmed;
+}
+
+function formatGenreSummary(genres: string[]) {
+  const cleaned = genres
+    .map(normalizeGenreTag)
+    .filter((genre): genre is string => Boolean(genre));
+  const unique = Array.from(new Map(cleaned.map((genre) => [genre.toLowerCase(), genre])).values());
+
+  if (unique.length === 0) {
+    return "Каталог";
+  }
+
+  const visible = unique.slice(0, 3).join(" · ");
+
+  return unique.length > 3 ? `${visible}...` : visible;
+}
+
 export function BookCard({
   slug,
   title,
@@ -34,6 +61,8 @@ export function BookCard({
   variant = "default"
 }: BookCardProps) {
   const isFeatured = variant === "featured";
+  const genreSummary = formatGenreSummary(genres);
+  const imageSrc = resolveBookImageSrc(coverImage, FALLBACK_COVER);
 
   return (
     <article
@@ -47,12 +76,10 @@ export function BookCard({
         backgroundImage: `radial-gradient(circle at top left, ${dominantColor}55, transparent 42%), linear-gradient(180deg, rgba(15,23,42,0.98) 0%, rgba(2,6,23,0.96) 100%)`
       }}
     >
-      <div className="book-spine-effect" />
-
       <div className="relative flex h-full flex-col">
         <div className="book-cover-frame mb-5 overflow-hidden rounded-[24px] border border-white/10 bg-slate-900/70 p-2">
           <Image
-            src={coverImage ?? FALLBACK_COVER}
+            src={imageSrc}
             alt={title}
             width={720}
             height={1080}
@@ -78,15 +105,23 @@ export function BookCard({
         <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-300">
           {description}
         </p>
-        <p className="mt-4 text-xs uppercase tracking-[0.18em] text-cyan-300">
-          {genres.length > 0 ? genres.join(", ") : "Каталог"}
+        <p className="mt-4 line-clamp-1 text-xs uppercase tracking-[0.18em] text-cyan-300">
+          {genreSummary}
         </p>
-        <Link
-          href={`/books/${slug}`}
-          className="mt-auto inline-flex pt-5 text-sm font-medium text-cyan-300 transition hover:text-cyan-200"
-        >
-        Открыть карточку
-        </Link>
+        <div className="mt-auto flex flex-wrap items-center gap-4 pt-5 text-sm font-medium">
+          <Link
+            href={`/books/${slug}`}
+            className="inline-flex text-cyan-300 transition hover:text-cyan-200"
+          >
+            Открыть карточку
+          </Link>
+          <Link
+            href={`/ar/books/${slug}`}
+            className="inline-flex text-slate-300 transition hover:text-cyan-200"
+          >
+            3D / AR
+          </Link>
+        </div>
       </div>
     </article>
   );

@@ -4,8 +4,8 @@ test("recommendations page shows summary, insights, and card reasons", async ({ 
   await page.goto("/auth/sign-in");
 
   await page.getByPlaceholder("Email").fill("reader@example.com");
-  await page.getByPlaceholder("Mật khẩu").fill("Reader12345");
-  await page.getByRole("button", { name: "Đăng nhập bằng mật khẩu" }).click();
+  await page.getByPlaceholder("Пароль").fill("Reader12345");
+  await page.getByRole("button", { name: "Войти по паролю" }).click();
 
   await expect(page).toHaveURL(/\/profile/);
 

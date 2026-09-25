@@ -268,7 +268,9 @@ npm run db:deploy
 ```
 
 `NEXTAUTH_URL` должен совпадать с публичным production domain.
-`VERCEL_PROJECT_PRODUCTION_URL` можно задать как backup для metadata/canonical URL logic, если домен проекта уже известен.
+`VERCEL_PROJECT_PRODUCTION_URL` используется только как backup для metadata/canonical URL logic.
+На `Vercel` этот ключ обычно приходит как system environment variable автоматически, поэтому вручную его добавлять не нужно.
+Если всё же задаёте его вручную вне `Vercel`, указывайте только домен без `https://` и без завершающего `/`, например `smart-library.example`.
 
 Если внешний AI-провайдер не настроен, приложение продолжит работать через `fallback recommendations`.
 

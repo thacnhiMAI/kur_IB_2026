@@ -67,7 +67,8 @@ export function CatalogFilters({ filters, params }: CatalogFiltersProps) {
       </form>
 
       <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-xs text-slate-400">
-        Голосовой поиск работает в блоке результатов ниже и не сбрасывает выбранные фильтры жанра, автора и года.
+        Голосовой поиск работает в блоке результатов ниже. Кнопка 3D / AR доступна
+        в каждой карточке книги и на странице книги.
       </div>
     </div>
   );

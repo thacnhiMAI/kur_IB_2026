@@ -4,7 +4,10 @@ import { afterEach, beforeEach, vi } from "vitest";
 
 vi.mock("@/components/auth/google-auth-button", () => ({
   GoogleAuthButton: ({ mode, enabled }: { mode: string; enabled: boolean }) => (
-    <button disabled={!enabled}>{mode === "signup" ? "Tiếp tục với Gmail" : "Đăng nhập với Gmail"}</button>
+    <button
+      disabled={!enabled}
+      aria-label={mode === "signup" ? "Регистрация через Google" : "Вход через Google"}
+    />
   )
 }));
 
@@ -27,9 +30,9 @@ describe("SignUpPage", () => {
   it("shows direct Gmail signup when Google OAuth is configured", () => {
     render(<SignUpPage />);
 
-    expect(screen.getByRole("button", { name: "Tiếp tục với Gmail" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Регистрация через Google" })).toBeInTheDocument();
     expect(
-      screen.getByText(/không cần nhập mật khẩu thủ công/i)
+      screen.getByText(/без отдельного пароля/i)
     ).toBeInTheDocument();
   });
 });

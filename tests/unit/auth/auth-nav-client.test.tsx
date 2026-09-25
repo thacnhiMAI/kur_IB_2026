@@ -24,7 +24,7 @@ describe("AuthNavClient", () => {
 
     render(<AuthNavClient />);
 
-    expect(screen.getByRole("link", { name: "Gmail sign up" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Регистрация через Google" })).toBeInTheDocument();
   });
 
   it("hydrates to the signed-in nav when a session exists", async () => {

@@ -2,6 +2,8 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 
+import { resolveBookImageSrc } from "@/lib/books/image-source";
+
 const FALLBACK_COVER = "/covers/fallback-book.jpg";
 
 type RecommendationCardProps = {
@@ -25,6 +27,8 @@ export function RecommendationCard({
   author,
   score
 }: RecommendationCardProps) {
+  const imageSrc = resolveBookImageSrc(coverImage, FALLBACK_COVER);
+
   return (
     <article
       data-testid="recommendation-card"
@@ -32,7 +36,7 @@ export function RecommendationCard({
     >
       <div className="overflow-hidden rounded-[22px] border border-white/10 bg-slate-950/70 p-2">
         <Image
-          src={coverImage ?? FALLBACK_COVER}
+          src={imageSrc}
           alt={title}
           width={512}
           height={768}

@@ -52,12 +52,12 @@ export default async function EditAdminAuthorPage({
     <section className="space-y-6">
       <AdminSectionNav current="authors" />
       <div>
-        <h1 className="text-3xl font-bold">Chỉnh sửa tác giả</h1>
-        <p className="mt-2 text-slate-300">Cập nhật thông tin tác giả để đồng bộ catalog.</p>
+        <h1 className="text-3xl font-bold">Редактирование автора</h1>
+        <p className="mt-2 text-slate-300">Обновите данные автора, чтобы синхронизировать каталог.</p>
       </div>
       <TaxonomyForm
         action={updateAuthor}
-        submitLabel="Lưu thay đổi"
+        submitLabel="Сохранить изменения"
         initialValues={{ name: author.name, slug: author.slug }}
       />
     </section>

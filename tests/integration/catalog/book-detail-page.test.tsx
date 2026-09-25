@@ -173,8 +173,8 @@ describe("getBookDetailPageData", () => {
     expect(screen.getByText("MIT Press")).toBeInTheDocument();
     expect(screen.getByText(/ISBN-13:/i)).toBeInTheDocument();
     expect(screen.getByText("9780441172719")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "AR Preview" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Открыть AR" })).toHaveAttribute(
+    expect(screen.getByRole("heading", { name: "3D / AR Preview" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Открыть 3D / AR" })).toHaveAttribute(
       "href",
       "/ar/books/design-of-everyday-things"
     );

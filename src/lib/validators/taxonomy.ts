@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 export const taxonomySchema = z.object({
-  name: z.string().min(2, "Tên phải có ít nhất 2 ký tự."),
-  slug: z.string().min(2, "Slug phải có ít nhất 2 ký tự.")
+  name: z.string().min(2, "Название должно содержать минимум 2 символа."),
+  slug: z.string().min(2, "Slug должен содержать минимум 2 символа.")
 });
 
 export type TaxonomyInput = z.infer<typeof taxonomySchema>;

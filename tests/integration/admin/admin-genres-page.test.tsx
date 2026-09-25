@@ -29,8 +29,8 @@ describe("AdminGenresPage", () => {
   it("shows the genres admin title", async () => {
     render(await AdminGenresPage());
 
-    expect(screen.getByRole("heading", { name: "Quản lý thể loại" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Управление жанрами" })).toBeInTheDocument();
     expect(screen.getByText("Thiết kế")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Xóa" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Удалить" })).toBeInTheDocument();
   });
 });

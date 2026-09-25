@@ -38,10 +38,10 @@ export default async function NewAdminGenrePage() {
     <section className="space-y-6">
       <AdminSectionNav current="genres" />
       <div>
-        <h1 className="text-3xl font-bold">Thêm thể loại</h1>
-        <p className="mt-2 text-slate-300">Tạo genre mới để xuất hiện trong filter và nhóm sách.</p>
+        <h1 className="text-3xl font-bold">Новый жанр</h1>
+        <p className="mt-2 text-slate-300">Создайте жанр, чтобы он появился в фильтрах и группировках книг.</p>
       </div>
-      <TaxonomyForm action={createGenre} submitLabel="Tạo thể loại" />
+      <TaxonomyForm action={createGenre} submitLabel="Создать жанр" />
     </section>
   );
 }

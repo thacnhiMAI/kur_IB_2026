@@ -38,10 +38,10 @@ export default async function NewAdminAuthorPage() {
     <section className="space-y-6">
       <AdminSectionNav current="authors" />
       <div>
-        <h1 className="text-3xl font-bold">Thêm tác giả</h1>
-        <p className="mt-2 text-slate-300">Tạo tác giả mới để gắn vào sách trong hệ thống.</p>
+        <h1 className="text-3xl font-bold">Новый автор</h1>
+        <p className="mt-2 text-slate-300">Создайте автора, чтобы связывать его с книгами в системе.</p>
       </div>
-      <TaxonomyForm action={createAuthor} submitLabel="Tạo tác giả" />
+      <TaxonomyForm action={createAuthor} submitLabel="Создать автора" />
     </section>
   );
 }

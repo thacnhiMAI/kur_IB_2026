@@ -18,5 +18,5 @@ test("phase e public routes keep shell, metadata assets, and key navigation work
   await expect(
     page.getByRole("heading", { name: "Дизайн привычных вещей" })
   ).toBeVisible();
-  await expect(page.getByRole("heading", { name: "AR Preview" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "3D / AR Preview" })).toBeVisible();
 });
