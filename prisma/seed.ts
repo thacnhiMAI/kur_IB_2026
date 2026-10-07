@@ -61,90 +61,157 @@ const fallbackImportedBooks: NormalizedImportedBook[] = [
   }
 ];
 
-async function resetDatabase() {
-  await prisma.recommendationItem.deleteMany();
-  await prisma.recommendationSnapshot.deleteMany();
-  await prisma.readingHistory.deleteMany();
-  await prisma.favorite.deleteMany();
-  await prisma.review.deleteMany();
-  await prisma.bookAuthor.deleteMany();
-  await prisma.bookGenre.deleteMany();
-  await prisma.bookCoverAsset.deleteMany();
-  await prisma.bookSourceRecord.deleteMany();
-  await prisma.book.deleteMany();
-  await prisma.author.deleteMany();
-  await prisma.genre.deleteMany();
-  await prisma.session.deleteMany();
-  await prisma.account.deleteMany();
-  await prisma.user.deleteMany();
-}
+const localizedDemoBooks = [
+  {
+    slug: "design-of-everyday-things",
+    title: "Дизайн привычных вещей",
+    description: "Классическая книга о проектировании, UX и понятных интерфейсах.",
+    language: "ru"
+  },
+  {
+    slug: "foundation",
+    title: "Основание",
+    description: "Классика научной фантастики о будущем цивилизации и прогнозировании.",
+    language: "ru"
+  },
+  {
+    slug: "game-of-thrones",
+    title: "Игра престолов",
+    description: "Эпическое фэнтези о власти, семье и борьбе за Железный трон.",
+    language: "ru"
+  }
+] as const;
 
-async function createDemoUsers() {
-  const adminPassword = await bcrypt.hash("Admin12345", 10);
-  const userPassword = await bcrypt.hash("Reader12345", 10);
-
-  const admin = await prisma.user.create({
-    data: {
-      name: "Admin",
-      email: "admin@example.com",
-      passwordHash: adminPassword,
-      role: UserRole.ADMIN
-    }
+async function ensureDemoUser(input: {
+  name: string;
+  email: string;
+  password: string;
+  role: UserRole;
+}) {
+  const existing = await prisma.user.findUnique({
+    where: { email: input.email }
   });
 
-  const user = await prisma.user.create({
-    data: {
-      name: "Reader",
-      email: "reader@example.com",
-      passwordHash: userPassword,
-      role: UserRole.USER
+  if (existing) {
+    if (!existing.emailVerified) {
+      return prisma.user.update({
+        where: { id: existing.id },
+        data: { emailVerified: new Date() }
+      });
     }
+    return existing;
+  }
+
+  const passwordHash = await bcrypt.hash(input.password, 10);
+
+  return prisma.user.create({
+    data: {
+      name: input.name,
+      email: input.email,
+      passwordHash,
+      role: input.role,
+      emailVerified: new Date()
+    }
+  });
+}
+
+async function ensureDemoUsers() {
+  const admin = await ensureDemoUser({
+    name: "Admin",
+    email: "admin@example.com",
+    password: "Admin12345",
+    role: UserRole.ADMIN
+  });
+
+  const user = await ensureDemoUser({
+    name: "Reader",
+    email: "reader@example.com",
+    password: "Reader12345",
+    role: UserRole.USER
   });
 
   return { admin, user };
 }
 
-async function ensureDemoCatalogSlugs() {
-  const localizedBooks = [
-    {
-      slug: "design-of-everyday-things",
-      title: "Дизайн привычных вещей",
-      description: "Классическая книга о проектировании, UX и понятных интерфейсах.",
-      language: "ru"
-    },
-    {
-      slug: "foundation",
-      title: "Основание",
-      description: "Классика научной фантастики о будущем цивилизации и прогнозировании.",
-      language: "ru"
-    },
-    {
-      slug: "game-of-thrones",
-      title: "Игра престолов",
-      description: "Эпическое фэнтези о власти, семье и борьбе за Железный трон.",
-      language: "ru"
-    }
-  ];
+async function bootstrapRealCatalogIfEmpty() {
+  const bookCount = await prisma.book.count();
 
-  for (const fallbackBook of fallbackImportedBooks) {
-    await upsertImportedBook(fallbackBook);
+  if (bookCount > 0) {
+    console.log(`Catalog already contains ${bookCount} book(s); skipping external provider import.`);
+    return false;
   }
 
-  for (const book of localizedBooks) {
-    await prisma.book.update({
-      where: {
-        slug: book.slug
-      },
-      data: {
-        title: book.title,
-        description: book.description,
-        language: book.language
+  console.log("Catalog is empty; importing initial books from providers...");
+
+  try {
+    const importReport = await importBooksFromProviders({
+      queries: DEFAULT_IMPORT_QUERIES
+    });
+
+    console.log(formatImportReport(importReport));
+  } catch (error) {
+    console.warn("Initial provider import failed; continuing with local fallback demo books.");
+    console.warn(error);
+  }
+
+  return true;
+}
+
+async function ensureDemoCatalogSlugs({ localizeExisting }: { localizeExisting: boolean }) {
+  for (let index = 0; index < fallbackImportedBooks.length; index += 1) {
+    const fallbackBook = fallbackImportedBooks[index];
+    const localizedBook = localizedDemoBooks[index];
+
+    const existing = await prisma.book.findUnique({
+      where: { slug: localizedBook.slug },
+      select: { id: true }
+    });
+
+    let createdNow = false;
+
+    if (!existing) {
+      await upsertImportedBook(fallbackBook);
+      createdNow = true;
+    }
+
+    if (createdNow || localizeExisting) {
+      const book = await prisma.book.findUnique({
+        where: { slug: localizedBook.slug },
+        select: { id: true }
+      });
+
+      if (book) {
+        await prisma.book.update({
+          where: { id: book.id },
+          data: {
+            title: localizedBook.title,
+            description: localizedBook.description,
+            language: localizedBook.language
+          }
+        });
       }
+    }
+  }
+}
+
+async function ensureReadingEvent(input: {
+  userId: string;
+  bookId: string;
+  eventType: ReadingEventType;
+}) {
+  const existing = await prisma.readingHistory.findFirst({
+    where: input,
+    select: { id: true }
+  });
+
+  if (!existing) {
+    await prisma.readingHistory.create({
+      data: input
     });
   }
 }
 
-async function createDemoEngagement(userId: string) {
+async function ensureDemoEngagement(userId: string) {
   const books = await prisma.book.findMany({
     where: {
       slug: {
@@ -165,30 +232,58 @@ async function createDemoEngagement(userId: string) {
     throw new Error("Seed bootstrap did not create the required demo books.");
   }
 
-  await prisma.favorite.create({
-    data: {
+  await prisma.favorite.upsert({
+    where: {
+      userId_bookId: {
+        userId,
+        bookId: designBook.id
+      }
+    },
+    create: {
       userId,
       bookId: designBook.id
-    }
+    },
+    update: {}
   });
 
-  await prisma.review.create({
-    data: {
+  const existingDemoReview = await prisma.review.findFirst({
+    where: {
       userId,
       bookId: designBook.id,
-      rating: 5,
-      content: "Очень полезная книга для понимания UX и пользовательского мышления.",
-      status: ReviewStatus.PUBLISHED
-    }
+      content: "Очень полезная книга для понимания UX и пользовательского мышления."
+    },
+    select: { id: true }
   });
 
-  await prisma.readingHistory.createMany({
-    data: [
-      { userId, bookId: designBook.id, eventType: ReadingEventType.FINISHED },
-      { userId, bookId: foundationBook.id, eventType: ReadingEventType.INTERESTED },
-      { userId, bookId: thronesBook.id, eventType: ReadingEventType.VIEWED }
-    ]
-  });
+  if (!existingDemoReview) {
+    await prisma.review.create({
+      data: {
+        userId,
+        bookId: designBook.id,
+        rating: 5,
+        content: "Очень полезная книга для понимания UX и пользовательского мышления.",
+        status: ReviewStatus.PUBLISHED
+      }
+    });
+  }
+
+  await Promise.all([
+    ensureReadingEvent({
+      userId,
+      bookId: designBook.id,
+      eventType: ReadingEventType.FINISHED
+    }),
+    ensureReadingEvent({
+      userId,
+      bookId: foundationBook.id,
+      eventType: ReadingEventType.INTERESTED
+    }),
+    ensureReadingEvent({
+      userId,
+      bookId: thronesBook.id,
+      eventType: ReadingEventType.VIEWED
+    })
+  ]);
 
   return {
     designBookSlug: designBook.slug,
@@ -198,19 +293,18 @@ async function createDemoEngagement(userId: string) {
 }
 
 async function main() {
-  await resetDatabase();
+  console.log("Running non-destructive demo bootstrap...");
 
-  const { admin, user } = await createDemoUsers();
+  const catalogWasEmpty = await bootstrapRealCatalogIfEmpty();
+  const { admin, user } = await ensureDemoUsers();
 
-  const importReport = await importBooksFromProviders({
-    queries: DEFAULT_IMPORT_QUERIES
+  await ensureDemoCatalogSlugs({
+    localizeExisting: catalogWasEmpty
   });
 
-  console.log(formatImportReport(importReport));
+  const engagement = await ensureDemoEngagement(user.id);
 
-  await ensureDemoCatalogSlugs();
-
-  const engagement = await createDemoEngagement(user.id);
+  const totalBooks = await prisma.book.count();
 
   console.log({
     adminEmail: admin.email,
@@ -219,7 +313,9 @@ async function main() {
       engagement.designBookSlug,
       engagement.foundationBookSlug,
       engagement.thronesBookSlug
-    ]
+    ],
+    totalBooks,
+    note: "Existing books, uploaded PDFs, covers, users, reviews and progress were preserved."
   });
 }
 

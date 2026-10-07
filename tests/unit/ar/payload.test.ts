@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildARBookPayload } from "@/lib/ar/payload";
 
 describe("buildARBookPayload", () => {
-  it("prefers cached cover metadata and keeps the AR payload compact", () => {
+  it("prefers cached cover metadata and includes reader-lite metadata", () => {
     const payload = buildARBookPayload({
       id: "book-1",
       slug: "design-of-everyday-things",
@@ -12,7 +12,12 @@ describe("buildARBookPayload", () => {
       description: "Классическая книга о проектировании.",
       coverImage: "/covers/design.jpg",
       dominantColor: "#112233",
-      authors: ["Дон Норман"]
+      authors: ["Дон Норман"],
+      year: 2013,
+      language: "ru",
+      pages: 368,
+      publisher: "MIT Press",
+      edition: "Revised"
     });
 
     expect(payload).toEqual({
@@ -22,7 +27,12 @@ describe("buildARBookPayload", () => {
       description: "Классическая книга о проектировании.",
       coverImage: "/covers/design.jpg",
       dominantColor: "#112233",
-      authors: ["Дон Норман"]
+      authors: ["Дон Норман"],
+      year: 2013,
+      language: "ru",
+      pages: 368,
+      publisher: "MIT Press",
+      edition: "Revised"
     });
   });
 
@@ -35,7 +45,12 @@ describe("buildARBookPayload", () => {
       description: "Тестовая книга без обложки.",
       coverImage: null,
       dominantColor: null,
-      authors: ["Unknown Author"]
+      authors: ["Unknown Author"],
+      year: 2024,
+      language: "en",
+      pages: 120,
+      publisher: null,
+      edition: null
     });
 
     expect(payload.coverImage).toBe("/covers/fallback-book.jpg");

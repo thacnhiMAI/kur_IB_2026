@@ -3,11 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CatalogBookRecord } from "@/lib/catalog/queries";
 
-const { bookFindMany, genreFindMany, authorFindMany } = vi.hoisted(() => ({
+const { bookFindMany, genreFindMany, authorFindMany, progressFindMany, auth } = vi.hoisted(() => ({
   bookFindMany: vi.fn(),
   genreFindMany: vi.fn(),
-  authorFindMany: vi.fn()
+  authorFindMany: vi.fn(),
+  progressFindMany: vi.fn(),
+  auth: vi.fn()
 }));
+
+vi.mock("@/auth", () => ({ auth }));
 
 vi.mock("@/lib/db", () => ({
   db: {
@@ -19,6 +23,9 @@ vi.mock("@/lib/db", () => ({
     },
     author: {
       findMany: authorFindMany
+    },
+    readingProgress: {
+      findMany: progressFindMany
     }
   }
 }));
@@ -80,6 +87,17 @@ function createCatalogBook(
           }
         ]
       : [],
+    contents: [
+      {
+        id: "content-1",
+        sourceType: "PDF",
+        status: "READY",
+        isPrimary: true,
+        storagePath: "D:/lab/Kur_IB/public/reading/design.pdf",
+        publicUrl: "/reading/design.pdf",
+        externalUrl: null
+      }
+    ],
     ...overrides
   };
 }
@@ -87,9 +105,12 @@ function createCatalogBook(
 describe("CatalogPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    auth.mockResolvedValue(null);
+    progressFindMany.mockResolvedValue([]);
   });
 
   it("renders the premium catalog hero, shelf, and 3d card hooks", async () => {
+    auth.mockResolvedValue({ user: { id: "user-1", role: "USER" } });
     bookFindMany
       .mockResolvedValueOnce([
         createCatalogBook({
@@ -104,6 +125,13 @@ describe("CatalogPage", () => {
       .mockResolvedValueOnce([{ year: 2013 }]);
     genreFindMany.mockResolvedValue([{ slug: "dizayn", name: "Дизайн" }]);
     authorFindMany.mockResolvedValue([{ slug: "don-norman", name: "Дон Норман" }]);
+    progressFindMany.mockResolvedValue([
+      {
+        bookId: "book-1",
+        progressPercent: 42,
+        completedAt: null
+      }
+    ]);
 
     render(await CatalogPage({ searchParams: Promise.resolve({}) }));
 
@@ -112,9 +140,10 @@ describe("CatalogPage", () => {
     expect(screen.getByText(/Featured collection/i)).toBeInTheDocument();
     expect(screen.getAllByText("Дизайн привычных вещей").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Дон Норман").length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("link", { name: /Открыть карточку/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: "Дизайн привычных вещей" }).length).toBeGreaterThan(0);
     expect(screen.getByTestId("featured-shelf")).toBeInTheDocument();
     expect(screen.getAllByTestId("book-card-3d")).not.toHaveLength(0);
+    expect(screen.getAllByTestId("catalog-reading-dot")[0]).toHaveClass("bg-amber-300");
     expect(screen.getAllByAltText("Дизайн привычных вещей")[0]).toHaveAttribute(
       "sizes"
     );

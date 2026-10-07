@@ -27,7 +27,7 @@ export function DeleteSubmitButton({
           event.preventDefault();
         }
       }}
-      className="rounded-lg border border-rose-500/40 px-4 py-2 text-sm font-medium text-rose-200 transition hover:border-rose-400 hover:text-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+      className="rounded-lg border border-rose-500/40 px-4 py-2 text-sm font-medium text-[var(--danger-text)] transition hover:border-rose-400 disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? pendingLabel : idleLabel}
     </button>

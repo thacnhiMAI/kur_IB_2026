@@ -4,6 +4,7 @@ import Link from "next/link";
 import React from "react";
 import { useMemo, useState } from "react";
 
+import { ReadingProgressBar } from "@/components/books/reading-progress-bar";
 import { UnifiedSearch } from "@/components/search/unified-search";
 import { filterSearchItems } from "@/lib/search/filter";
 
@@ -15,6 +16,9 @@ type SearchableFavoriteItem = {
   authors: string[];
   description: string;
   year?: number | null;
+  progressPercent: number;
+  canRead: boolean;
+  hasInternalFile: boolean;
 };
 
 export function SearchableFavoritesList({
@@ -51,30 +55,40 @@ export function SearchableFavoritesList({
           {filteredItems.map((item) => (
             <article
               key={item.id}
-              className="rounded-2xl border border-slate-800 bg-slate-900 p-5"
+              className="editorial-subtle-surface rounded-[28px] p-6 shadow-[0_28px_90px_rgba(2,6,23,0.34)]"
             >
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-[var(--text-secondary)]">
                 {item.authors.length > 0 ? item.authors.join(", ") : "Неизвестный автор"}
                 {item.year ? ` · ${item.year}` : ""}
               </p>
-              <h2 className="mt-2 text-xl font-semibold text-slate-50">
-                {item.title}
+              <h2 className="mt-3 text-2xl font-semibold text-slate-50">
+                <Link
+                  href={`/books/${item.slug}`}
+                  className="transition hover:text-[var(--accent-text)]"
+                >
+                  {item.title}
+                </Link>
               </h2>
               {item.subtitle ? (
-                <p className="mt-1 text-sm text-slate-400">{item.subtitle}</p>
+                <p className="mt-1 text-sm text-[var(--text-muted)]">{item.subtitle}</p>
               ) : null}
-              <p className="mt-3 text-slate-300">{item.description}</p>
-              <Link
-                href={`/books/${item.slug}`}
-                className="mt-5 inline-flex text-sm font-medium text-cyan-300 hover:text-cyan-200"
-              >
-                Перейти к книге
-              </Link>
+              <p className="mt-4 leading-7 text-[var(--text-secondary)]">{item.description}</p>
+              <div className="mt-6 space-y-4">
+                {item.hasInternalFile ? <ReadingProgressBar percent={item.progressPercent} /> : null}
+                {item.canRead ? (
+                  <Link
+                    href={`/read/books/${item.slug}`}
+                    className="inline-flex text-sm font-medium text-[var(--accent-text)] hover:brightness-110"
+                  >
+                    Читать
+                  </Link>
+                ) : null}
+              </div>
             </article>
           ))}
         </div>
       ) : (
-        <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/60 p-10 text-center text-slate-300">
+        <div className="rounded-[28px] border border-dashed border-white/10 bg-[rgba(4,10,26,0.74)] p-10 text-center text-[var(--text-secondary)]">
           По локальному поиску книги не найдены.
         </div>
       )}

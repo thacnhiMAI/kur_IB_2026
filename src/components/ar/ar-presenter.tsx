@@ -8,7 +8,8 @@ import type {
 
 const MODE_COPY: Record<ARPreviewMode, string> = {
   webxr: "Immersive AR is available for this book.",
-  "3d-fallback": "Your device is using the interactive 3D fallback preview.",
+  "3d-fallback":
+    "Immersive AR is unavailable on this device. Opening the 3D Reader Lite preview instead.",
   "2d-fallback": "Your device is using the readable 2D fallback preview."
 };
 

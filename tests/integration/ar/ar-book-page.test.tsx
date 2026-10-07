@@ -61,7 +61,11 @@ const BOOK_DETAIL_FIXTURE = {
   ratingAverage: 4.5,
   ratingsCount: 1200,
   isFeatured: true,
-  year: 2013
+  year: 2013,
+  readingMode: "internal",
+  readHref: "/read/books/design-of-everyday-things",
+  readLabel: "Читать",
+  primaryContentId: "content-1"
 };
 
 const originalNavigatorXR = navigator.xr;
@@ -111,12 +115,16 @@ describe("ARBookPage", () => {
     await waitFor(() => {
       expect(decideARPreviewMode).toHaveBeenCalled();
     });
+    expect(screen.getByRole("link", { name: "Читать" })).toHaveAttribute(
+      "href",
+      "/read/books/design-of-everyday-things"
+    );
     expect(screen.getByText("AR Preview")).toBeInTheDocument();
-    expect(screen.getByText("Дизайн привычных вещей")).toBeInTheDocument();
+    expect(screen.getAllByText("Дизайн привычных вещей")).toHaveLength(2);
     expect(screen.getByTestId("ar-preview-2d")).toBeInTheDocument();
   });
 
-  it("switches to the 3d fallback shell when capabilities allow it", async () => {
+  it("switches to the reader-lite fallback shell when capabilities allow it", async () => {
     decideARPreviewMode.mockResolvedValue({
       mode: "3d-fallback",
       reason: "immersive-ar-unavailable",
@@ -134,8 +142,14 @@ describe("ARBookPage", () => {
     await waitFor(() => {
       expect(decideARPreviewMode).toHaveBeenCalled();
     });
-    expect(await screen.findByText("3D Preview")).toBeInTheDocument();
+    expect(await screen.findByText("3D Reader Lite")).toBeInTheDocument();
     expect(screen.getByTestId("ar-preview-3d")).toBeInTheDocument();
+    expect(screen.getByTestId("ar-reader-lite")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Immersive AR is unavailable on this device. Opening the 3D Reader Lite preview instead."
+      )
+    ).toBeInTheDocument();
   });
 
   it("renders the webxr preview on supported devices", async () => {

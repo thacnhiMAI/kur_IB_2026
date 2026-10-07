@@ -4,6 +4,10 @@ import type {
   CatalogBookRecord
 } from "@/lib/catalog/queries";
 import { buildARBookPayload } from "@/lib/ar/payload";
+import {
+  getReadingEntryMode,
+  resolvePrimaryBookContent
+} from "@/lib/reading/content-source";
 
 const DEFAULT_BOOK_COLOR = "#0F172A";
 
@@ -13,6 +17,8 @@ function getPrimaryCover(book: Pick<CatalogBookRecord, "coverAssets">) {
 
 export function toCatalogBookCard(book: CatalogBookRecord): CatalogBookCard {
   const primaryCover = getPrimaryCover(book);
+  const primaryContent = resolvePrimaryBookContent(book.contents);
+  const readingMode = getReadingEntryMode(primaryContent);
 
   return {
     id: book.id,
@@ -26,12 +32,29 @@ export function toCatalogBookCard(book: CatalogBookRecord): CatalogBookCard {
     blurDataUrl: primaryCover?.blurDataUrl ?? null,
     authors: book.authors.map((item) => item.author.name),
     genres: book.genres.map((item) => item.genre.name),
-    isFeatured: book.isFeatured
+    isFeatured: book.isFeatured,
+    readingMode,
+    readHref:
+      readingMode === "internal"
+        ? `/read/books/${book.slug}`
+        : readingMode === "external"
+          ? `/read/books/${book.slug}`
+          : null,
+    readLabel:
+      readingMode === "internal"
+        ? "Читать"
+        : readingMode === "external"
+          ? "Открыть внешний источник"
+          : null,
+    progressPercent: 0,
+    readingStatus: "not-started"
   };
 }
 
 export function toCatalogBookDetail(book: CatalogBookRecord): CatalogBookDetail {
   const primaryCover = getPrimaryCover(book);
+  const primaryContent = resolvePrimaryBookContent(book.contents);
+  const readingMode = getReadingEntryMode(primaryContent);
 
   return {
     id: book.id,
@@ -52,7 +75,21 @@ export function toCatalogBookDetail(book: CatalogBookRecord): CatalogBookDetail 
     pages: book.pages,
     ratingAverage: book.ratingAverage,
     ratingsCount: book.ratingsCount,
-    isFeatured: book.isFeatured
+    isFeatured: book.isFeatured,
+    readingMode,
+    readHref:
+      readingMode === "internal"
+        ? `/read/books/${book.slug}`
+        : readingMode === "external"
+          ? `/read/books/${book.slug}`
+          : null,
+    readLabel:
+      readingMode === "internal"
+        ? "Читать"
+        : readingMode === "external"
+          ? "Открыть внешний источник"
+          : null,
+    primaryContentId: primaryContent?.id ?? null
   };
 }
 
@@ -65,6 +102,11 @@ export function toARBookPayload(book: CatalogBookDetail) {
     description: book.description,
     coverImage: book.coverImage,
     dominantColor: book.dominantColor,
-    authors: book.authors
+    authors: book.authors,
+    year: book.year,
+    language: book.language,
+    pages: book.pages,
+    publisher: book.publisher,
+    edition: book.edition
   });
 }

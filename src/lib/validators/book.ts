@@ -4,9 +4,11 @@ export const bookSchema = z.object({
   title: z.string().min(2, "Название должно содержать минимум 2 символа."),
   subtitle: z.string().optional(),
   originalTitle: z.string().optional(),
-  slug: z.string().min(2, "Slug должен содержать минимум 2 символа."),
+  slug: z.string().min(2, "Slug должен содержать минимум 2 символа.").regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug может содержать только латинские буквы, цифры и дефисы."),
   description: z.string().min(10, "Описание должно быть информативным."),
-  coverImage: z.string().url().optional().or(z.literal("")),
+  coverImage: z
+    .union([z.literal(""), z.string().url(), z.string().startsWith("/covers/")])
+    .optional(),
   year: z.number().int().min(1000).max(2100),
   isbn: z.string().optional(),
   isbn10: z.string().optional(),

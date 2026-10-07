@@ -1,16 +1,20 @@
 import React from "react";
 
-import { CatalogHero } from "@/components/catalog/catalog-hero";
+import { auth } from "@/auth";
 import { CatalogFilters } from "@/components/catalog/catalog-filters";
 import { FeaturedShelf } from "@/components/catalog/featured-shelf";
+import { RecentlyViewedBooks } from "@/components/catalog/recently-viewed-books";
 import { SearchableCatalogResults } from "@/components/search/searchable-catalog-results";
+import type { CatalogSearchParams } from "@/lib/catalog/queries";
 import { getCatalogPageData } from "@/lib/catalog/service";
+import { db } from "@/lib/db";
+import { normalizeReadingProgress } from "@/lib/reading/progress";
 import { buildPageMetadata } from "@/lib/site/metadata";
 
 export const revalidate = 300;
 export const metadata = buildPageMetadata({
   title: "Каталог",
-  description: "Каталог книг с фильтрами, обложками и локальным голосовым поиском.",
+  description: "Каталог книг с серверным поиском, независимой featured-полкой и cursor pagination.",
   path: "/catalog"
 });
 
@@ -20,48 +24,89 @@ export default async function CatalogPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const params = await searchParams;
-  const data = await getCatalogPageData({
+  const session = await auth();
+  const catalogParams: CatalogSearchParams = {
+    q: params.q,
     genre: params.genre,
     author: params.author,
-    year: params.year
+    year: params.year,
+    cursor: params.cursor,
+    direction: params.direction === "prev" ? "prev" : "next"
+  };
+  const data = await getCatalogPageData(catalogParams);
+
+  const progressByBookId = session?.user?.id
+    ? new Map(
+        (
+          await db.readingProgress.findMany({
+            where: {
+              userId: session.user.id,
+              bookId: { in: data.books.map((book) => book.id) }
+            }
+          })
+        ).map((progress) => [progress.bookId, progress])
+      )
+    : new Map();
+
+  const booksWithProgress = data.books.map((book) => {
+    const progress = progressByBookId.get(book.id);
+    const normalized = progress
+      ? normalizeReadingProgress({
+          progressPercent: progress.progressPercent,
+          completedAt: progress.completedAt
+        })
+      : { percent: 0, status: "not-started" as const };
+
+    return {
+      ...book,
+      progressPercent: normalized.percent,
+      readingStatus: normalized.status
+    };
   });
-  const shelfBooks =
-    data.featuredBooks.length > 0 ? data.featuredBooks : data.books.slice(0, 6);
+
+  // Featured is deliberately queried independently from q/author/genre/year.
+  // Searching the main catalog must never rewrite or filter this shelf.
+  const shelfBooks = data.featuredBooks;
 
   return (
     <div className="space-y-10">
-      <CatalogHero
-        totalBooks={data.books.length}
-        featuredCount={data.featuredBooks.length}
-      >
-        <CatalogFilters filters={data.filters} params={params} />
-      </CatalogHero>
+      <section className="flex flex-col gap-6 border-b border-[var(--surface-border)] pb-7 lg:flex-row lg:items-end lg:justify-between">
+        <div className="space-y-2">
+          <p className="concept-kicker">Библиотека</p>
+          <h1 className="text-4xl font-semibold tracking-[-0.035em] text-[var(--text-primary)] sm:text-5xl">Каталог</h1>
+          <p className="max-w-2xl leading-7 text-[var(--text-secondary)]">
+            Featured-полка остаётся стабильной, а поиск и фильтры работают только с основными результатами.
+          </p>
+        </div>
+        <div className="concept-pill w-fit rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em]">
+          25 книги / страница
+        </div>
+      </section>
 
       <FeaturedShelf books={shelfBooks} />
 
+      <CatalogFilters filters={data.filters} params={catalogParams} />
+
       <section id="catalog-results" className="space-y-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-3 border-b border-[var(--surface-border)] pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">
-              Результаты
-            </p>
-            <h2 className="text-2xl font-semibold text-slate-50">Все книги</h2>
+            <p className="concept-kicker">Результаты</p>
+            <h2 className="text-3xl font-semibold tracking-tight text-[var(--text-primary)]">Все книги</h2>
           </div>
-          <p className="text-sm text-slate-400">
-            {data.books.length > 0
-              ? `${data.books.length} книг доступно по текущим фильтрам`
-              : "Измените фильтры, чтобы расширить выборку"}
+          <p className="text-sm text-[var(--text-secondary)]">
+            {booksWithProgress.length > 0
+              ? `Показано ${booksWithProgress.length} книг на текущей странице`
+              : "Измените запрос или фильтры, чтобы расширить выборку"}
           </p>
         </div>
 
-        {data.books.length > 0 ? (
-          <SearchableCatalogResults books={data.books} />
-        ) : (
-          <div className="rounded-[28px] border border-dashed border-slate-700 bg-slate-900/60 p-10 text-center text-slate-300">
-            По выбранным фильтрам книги не найдены.
-          </div>
-        )}
+        <SearchableCatalogResults
+          books={booksWithProgress}
+          pagination={data.pagination}
+        />
       </section>
+
+      <RecentlyViewedBooks />
     </div>
   );
 }

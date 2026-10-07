@@ -1,68 +1,30 @@
-import React from "react";
-
-type RecommendationHeroProps = {
-  summary: string;
-  strategy: "fallback" | "ai-enriched" | string;
-  status: "ready" | "enriching" | "failed" | string;
-  provider: string;
-  updatedAt: string;
-  itemsCount: number;
-};
-
-const STRATEGY_LABELS: Record<string, string> = {
-  fallback: "Fallback snapshot",
-  "ai-enriched": "AI enrichment"
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  ready: "Готово",
-  enriching: "AI дообогащает подборку",
-  failed: "AI недоступен, показан fallback"
-};
-
-function formatStrategy(strategy: string) {
-  return STRATEGY_LABELS[strategy] ?? strategy;
-}
-
-function formatStatus(status: string) {
-  return STATUS_LABELS[status] ?? status;
-}
+import React, { type ReactNode } from "react";
 
 export function RecommendationHero({
   summary,
-  strategy,
-  status,
-  provider,
-  updatedAt,
-  itemsCount
-}: RecommendationHeroProps) {
+  children
+}: {
+  summary: string;
+  children?: ReactNode;
+}) {
   return (
-    <section className="rounded-[28px] border border-slate-800 bg-slate-900 p-6 shadow-[0_24px_70px_rgba(2,6,23,0.38)]">
-      <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">Reading profile</p>
-      <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="space-y-3">
-          <h1 className="text-3xl font-bold text-slate-50">Персональные рекомендации</h1>
-          <p className="max-w-3xl text-sm leading-7 text-slate-300 md:text-base">{summary}</p>
+    <section className="recommendation-reference-hero px-8 py-10 sm:px-10 sm:py-12 lg:px-12 lg:py-11">
+      <div className="relative z-10 max-w-[820px] space-y-6 lg:pr-40">
+        <p className="concept-kicker">Reading profile</p>
+        <div className="space-y-4">
+          <h1 className="font-display text-4xl leading-[1.02] tracking-[-0.035em] text-[var(--text-primary)] sm:text-5xl lg:text-[3.4rem]">
+            Персональные рекомендации
+          </h1>
+          <p className="max-w-3xl text-base leading-8 text-[var(--text-secondary)] sm:text-lg">
+            {summary}
+          </p>
         </div>
-        <div className="grid gap-3 text-sm text-slate-300 sm:grid-cols-2">
-          <div className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Стратегия</p>
-            <p className="mt-2 font-medium text-slate-100">{formatStrategy(strategy)}</p>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Статус</p>
-            <p className="mt-2 font-medium text-slate-100">{formatStatus(status)}</p>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Провайдер</p>
-            <p className="mt-2 font-medium text-slate-100">{provider}</p>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Обновлено</p>
-            <p className="mt-2 font-medium text-slate-100">{updatedAt}</p>
-            <p className="mt-1 text-xs text-slate-500">{itemsCount} книг в текущем snapshot</p>
-          </div>
-        </div>
+        {children ? <div className="pt-1">{children}</div> : null}
+      </div>
+
+      <div className="recommendation-reference-visual" aria-hidden="true">
+        <div className="recommendation-orbit" />
+        <div className="recommendation-book-stack"><span /><span /><span /></div>
       </div>
     </section>
   );

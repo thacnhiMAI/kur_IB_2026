@@ -7,12 +7,15 @@ export type RecommendationInsights = {
 
 export type RecommendationContext = {
   userId: string;
-  favoriteBooks: Array<{ bookId: string; title: string }>;
+  favoriteBooks: Array<{ bookId: string; title: string; genres?: string[]; authors?: string[]; description?: string }>;
+  readingProgress?: Array<{ bookId: string; title: string; progressPercent: number; completedAt: string | null; genres: string[]; authors: string[]; description?: string }>;
   favoriteGenres: string[];
   favoriteAuthors: string[];
   readingSignals: Array<{
     bookId: string;
     title: string;
+    createdAt?: string;
+    description?: string;
     eventType: "VIEWED" | "INTERESTED" | "FINISHED";
     genres: string[];
     authors: string[];

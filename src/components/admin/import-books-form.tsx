@@ -60,10 +60,10 @@ export function ImportBooksForm({ defaultQueries = DEFAULT_IMPORT_QUERIES }: Imp
     <div className="space-y-4">
       <form
         onSubmit={handleSubmit}
-        className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6"
+        className="space-y-4 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-1)] p-6"
       >
         <div className="space-y-2">
-          <label htmlFor="import-queries" className="text-sm font-medium text-slate-100">
+          <label htmlFor="import-queries" className="text-sm font-medium text-[var(--text-primary)]">
             Запросы для импорта
           </label>
           <textarea
@@ -71,9 +71,9 @@ export function ImportBooksForm({ defaultQueries = DEFAULT_IMPORT_QUERIES }: Imp
             name="queries"
             rows={6}
             defaultValue={defaultQueries.join("\n")}
-            className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100"
+            className="w-full rounded-lg border border-[var(--surface-border-strong)] bg-[var(--surface-2)] px-4 py-3 text-sm text-[var(--text-primary)]"
           />
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-[var(--text-muted)]">
             Один запрос на строку. Можно смешивать жанры, темы и ключевые слова.
           </p>
         </div>
@@ -81,54 +81,54 @@ export function ImportBooksForm({ defaultQueries = DEFAULT_IMPORT_QUERIES }: Imp
         <button
           type="submit"
           disabled={isPending}
-          className="rounded-lg bg-cyan-400 px-4 py-3 font-medium text-slate-950 disabled:cursor-not-allowed disabled:opacity-70"
+          className="rounded-lg concept-button-primary px-4 py-3 font-medium text-white disabled:cursor-not-allowed disabled:opacity-70"
         >
           {isPending ? "Импорт..." : "Запустить импорт"}
         </button>
       </form>
 
       {error ? (
-        <div role="alert" className="rounded-2xl border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-rose-100">
+        <div role="alert" className="rounded-2xl border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-[var(--danger-text)]">
           {error}
         </div>
       ) : null}
 
       {report ? (
-        <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6" aria-live="polite">
-          <h2 className="text-lg font-semibold text-slate-100">Результат импорта</h2>
-          <dl className="mt-4 grid gap-3 text-sm text-slate-300 md:grid-cols-2">
+        <section className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-1)] p-6" aria-live="polite">
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">Результат импорта</h2>
+          <dl className="mt-4 grid gap-3 text-sm text-[var(--text-secondary)] md:grid-cols-2">
             <div>
-              <dt className="text-slate-500">Запросы</dt>
+              <dt className="text-[var(--text-muted)]">Запросы</dt>
               <dd>{report.queries.join(", ") || "По умолчанию"}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Получено</dt>
+              <dt className="text-[var(--text-muted)]">Получено</dt>
               <dd>{report.totalFetched}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Добавлено</dt>
+              <dt className="text-[var(--text-muted)]">Добавлено</dt>
               <dd>{report.added}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Обновлено</dt>
+              <dt className="text-[var(--text-muted)]">Обновлено</dt>
               <dd>{report.updated}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Пропущено</dt>
+              <dt className="text-[var(--text-muted)]">Пропущено</dt>
               <dd>{report.skipped}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Ошибки обложек</dt>
+              <dt className="text-[var(--text-muted)]">Ошибки обложек</dt>
               <dd>{report.coverFailures}</dd>
             </div>
           </dl>
 
           {report.providerFailures.length > 0 ? (
             <div className="mt-4 space-y-2">
-              <h3 className="text-sm font-medium text-slate-100">Ошибки провайдеров</h3>
-              <ul className="space-y-2 text-sm text-slate-300">
+              <h3 className="text-sm font-medium text-[var(--text-primary)]">Ошибки провайдеров</h3>
+              <ul className="space-y-2 text-sm text-[var(--text-secondary)]">
                 {report.providerFailures.map((failure) => (
-                  <li key={`${failure.provider}-${failure.message}`} className="rounded-lg bg-slate-950 px-3 py-2">
+                  <li key={`${failure.provider}-${failure.message}`} className="rounded-lg bg-[var(--surface-2)] px-3 py-2">
                     {failure.provider}: {failure.message}
                   </li>
                 ))}

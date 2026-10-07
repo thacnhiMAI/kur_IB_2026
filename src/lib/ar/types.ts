@@ -16,6 +16,11 @@ export type ARBookPayload = {
   description: string;
   coverImage?: string | null;
   dominantColor?: string | null;
+  year: number;
+  language: string;
+  pages: number;
+  publisher?: string | null;
+  edition?: string | null;
 };
 
 export const DEFAULT_AR_COVER = "/covers/fallback-book.jpg";

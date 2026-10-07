@@ -1,0 +1,13 @@
+const ts=require('typescript');
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
+const code=ts.transpileModule(fs.readFileSync(require('path').join(__dirname,'../src/lib/recommendations/neural.ts'),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+const c={exports:{}};vm.createContext(c);vm.runInContext(code,c);const rank=c.exports.rankPersonalizedBooks;
+const ctx={userId:'test',favoriteBooks:[],favoriteGenres:[],favoriteAuthors:[],readingSignals:[],reviewedBooks:[],excludedBookIds:[]};
+const books=Array.from({length:60},(_,i)=>({id:'b'+i,title:'Book '+i,authors:[i<30?'Tolstoy':'Lem'],genres:[i<30?'History':'Science'],ratingAverage:i===59?null:1+(i%5),ratingsCount:10,description:i<30?'history empire historical':'galaxy rocket space'}));
+let out=rank(ctx,books);assert.equal(out.length,60);assert.equal(out.at(-1).id,'b59');for(let i=1;i<out.length;i++)assert.ok((out[i-1].ratingAverage??-1)>=(out[i].ratingAverage??-1));
+const history={...ctx,favoriteBooks:[{bookId:'b0',title:books[0].title}],excludedBookIds:['b0']};out=rank(history,books);assert.ok(out.every(b=>b.id!=='b0'));assert.ok(out.some(b=>b.genres[0]==='History'));assert.deepEqual(JSON.stringify(out),JSON.stringify(rank(history,books)));
+const dislike={...ctx,reviewedBooks:[{bookId:'b0',title:'History',authors:['Tolstoy'],genres:['History'],rating:1,content:'не люблю историю'}],excludedBookIds:['b0']};assert.ok(rank(dislike,books).every(b=>b.genres[0]!=='History'));
+const learning={...history,readingSignals:[{bookId:'b1',title:'Book 1',authors:['Tolstoy'],genres:['History'],eventType:'VIEWED'},{bookId:'b2',title:'Book 2',authors:['Tolstoy'],genres:['History'],eventType:'INTERESTED'}],reviewedBooks:[{bookId:'b3',title:'Book 3',authors:['Tolstoy'],genres:['History'],rating:5,content:'history empire'}]};out=rank(learning,books);assert.ok(out.length>6);assert.ok(out.every(b=>Number.isFinite(b.personalScore)));assert.deepEqual(JSON.stringify(out),JSON.stringify(rank(learning,books)));
+const dup={...learning,readingSignals:[...learning.readingSignals,...learning.readingSignals]};assert.deepEqual(JSON.stringify(out),JSON.stringify(rank(dup,books)));
+const progress={...ctx,readingProgress:[{bookId:'b40',title:'Book 40',authors:['Lem'],genres:['Science'],progressPercent:50,completedAt:null}],excludedBookIds:['b40']};out=rank(progress,books);assert.ok(out.some(b=>b.genres[0]==='Science'));assert.ok(!out.some(b=>b.id==='b40'));
+console.log('Neural regression passed: cold start, all candidates, ratings order, explicit dislikes, sparse positives, training branch, repeat stability, duplicate views, reading progress.');

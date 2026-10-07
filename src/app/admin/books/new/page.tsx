@@ -3,15 +3,20 @@ import { redirect } from "next/navigation";
 
 import { AdminSectionNav } from "@/components/admin/admin-section-nav";
 import { BookForm } from "@/components/admin/book-form";
+import { applyUploadedCoverToBook } from "@/lib/admin/cover-upload";
+import { parseBookPayload } from "@/lib/admin/book-input";
 import { requireAdmin } from "@/lib/auth";
+import { canonicalBookSlug } from "@/lib/books/slug";
 import { revalidatePublicCatalogPaths } from "@/lib/catalog/public-cache";
 import { db } from "@/lib/db";
-import { parseBookPayload } from "@/lib/admin/book-input";
+import { bookContentInputSchema } from "@/lib/reading/content-input";
+import { syncBookContentSources } from "@/lib/reading/content-management";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewAdminBookPage() {
-  await requireAdmin();
+  await requireAdmin("/admin/books/new");
+
   const [authors, genres] = await Promise.all([
     db.author.findMany({ orderBy: { name: "asc" } }),
     db.genre.findMany({ orderBy: { name: "asc" } })
@@ -20,15 +25,19 @@ export default async function NewAdminBookPage() {
   async function createBook(formData: FormData) {
     "use server";
 
-    await requireAdmin();
+    const currentAdmin = await requireAdmin();
+
+    const coverFileEntry = formData.get("coverFile");
+    const coverFile =
+      coverFileEntry instanceof File && coverFileEntry.size > 0 ? coverFileEntry : null;
 
     const parsed = parseBookPayload({
       title: String(formData.get("title") ?? ""),
       subtitle: String(formData.get("subtitle") ?? ""),
       originalTitle: String(formData.get("originalTitle") ?? ""),
-      slug: String(formData.get("slug") ?? ""),
+      slug: canonicalBookSlug(String(formData.get("slug") ?? ""), String(formData.get("title") ?? "")),
       description: String(formData.get("description") ?? ""),
-      coverImage: String(formData.get("coverImage") ?? ""),
+      coverImage: coverFile ? "" : String(formData.get("coverImage") ?? ""),
       year: Number(formData.get("year")),
       isbn: String(formData.get("isbn") ?? "") || undefined,
       isbn10: String(formData.get("isbn10") ?? "") || undefined,
@@ -42,6 +51,14 @@ export default async function NewAdminBookPage() {
       authorIds: formData.getAll("authorIds"),
       genreIds: formData.getAll("genreIds")
     });
+
+    const parsedContent = bookContentInputSchema.parse({
+      externalUrl: String(formData.get("externalUrl") ?? ""),
+      makePdfPrimary: formData.get("makePdfPrimary") === "on"
+    });
+
+    const pdfFileEntry = formData.get("pdfFile");
+    const pdfFile = pdfFileEntry instanceof File && pdfFileEntry.size > 0 ? pdfFileEntry : null;
 
     const book = await db.book.create({
       data: {
@@ -70,6 +87,23 @@ export default async function NewAdminBookPage() {
       }
     });
 
+    if (coverFile) {
+      await applyUploadedCoverToBook({
+        bookId: book.id,
+        slug: book.slug,
+        file: coverFile
+      });
+    }
+
+    await syncBookContentSources({
+      bookId: book.id,
+      slug: book.slug,
+      userId: currentAdmin.id,
+      pdfFile,
+      externalUrl: parsedContent.externalUrl ?? "",
+      makePdfPrimary: parsedContent.makePdfPrimary
+    });
+
     await revalidatePublicCatalogPaths({
       bookSlugs: [book.slug]
     });
@@ -78,19 +112,37 @@ export default async function NewAdminBookPage() {
   }
 
   return (
-    <section className="space-y-6">
+    <section data-testid="admin-shell" className="space-y-8">
       <AdminSectionNav current="books" />
 
-      <div>
-        <h1 className="text-3xl font-bold">Новая книга</h1>
-        <p className="mt-2 text-slate-300">Создайте карточку для каталога и последующих рекомендаций.</p>
+      <div className="space-y-3 border-b border-white/10 pb-6">
+        <p className="text-xs uppercase tracking-[0.22em] text-[var(--accent-text)]">Admin</p>
+        <div>
+          <h1 className="text-4xl font-semibold text-white">Новая книга</h1>
+          <p className="mt-2 text-[var(--text-secondary)]">
+            Создайте карточку для каталога и последующих рекомендаций.
+          </p>
+        </div>
       </div>
+
       <BookForm
         action={createBook}
         submitLabel="Создать книгу"
         options={{
-          authors: authors.map((author) => ({ id: author.id, name: author.name })),
-          genres: genres.map((genre) => ({ id: genre.id, name: genre.name }))
+          authors: authors.map((author) => ({
+            id: author.id,
+            name: author.name,
+            slug: author.slug
+          })),
+          genres: genres.map((genre) => ({
+            id: genre.id,
+            name: genre.name,
+            slug: genre.slug
+          }))
+        }}
+        initialValues={{
+          externalUrl: null,
+          contentSummary: []
         }}
       />
     </section>

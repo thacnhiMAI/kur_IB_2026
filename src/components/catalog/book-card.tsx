@@ -17,6 +17,7 @@ type BookCardProps = {
   blurDataUrl?: string | null;
   dominantColor?: string;
   variant?: "default" | "featured";
+  readingStatus?: "not-started" | "in-progress" | "completed";
 };
 
 const FALLBACK_COVER = "/covers/fallback-book.jpg";
@@ -24,26 +25,15 @@ const DEFAULT_BOOK_COLOR = "#0F172A";
 
 function normalizeGenreTag(tag: string) {
   const trimmed = tag.trim();
-
-  if (!trimmed || trimmed.includes("=") || trimmed.includes(":")) {
-    return null;
-  }
-
+  if (!trimmed || trimmed.includes("=") || trimmed.includes(":")) return null;
   return trimmed;
 }
 
 function formatGenreSummary(genres: string[]) {
-  const cleaned = genres
-    .map(normalizeGenreTag)
-    .filter((genre): genre is string => Boolean(genre));
+  const cleaned = genres.map(normalizeGenreTag).filter((genre): genre is string => Boolean(genre));
   const unique = Array.from(new Map(cleaned.map((genre) => [genre.toLowerCase(), genre])).values());
-
-  if (unique.length === 0) {
-    return "Каталог";
-  }
-
+  if (unique.length === 0) return "Каталог";
   const visible = unique.slice(0, 3).join(" · ");
-
   return unique.length > 3 ? `${visible}...` : visible;
 }
 
@@ -58,70 +48,57 @@ export function BookCard({
   coverImage,
   blurDataUrl,
   dominantColor = DEFAULT_BOOK_COLOR,
-  variant = "default"
+  variant = "default",
+  readingStatus = "not-started"
 }: BookCardProps) {
   const isFeatured = variant === "featured";
   const genreSummary = formatGenreSummary(genres);
   const imageSrc = resolveBookImageSrc(coverImage, FALLBACK_COVER);
+  const titleId = `book-card-title-${slug}`;
 
   return (
     <article
       data-testid="book-card-3d"
       className={[
-        "book-card-surface group relative flex h-full flex-col overflow-hidden rounded-[28px] border border-white/10 p-5 shadow-[0_30px_80px_rgba(2,6,23,0.45)] transition-transform duration-300",
-        "motion-safe:hover:-translate-y-2 motion-safe:hover:rotate-[0.35deg]",
-        isFeatured ? "min-h-[34rem]" : "min-h-[32rem]"
+        "editorial-book-card book-card-surface group relative flex h-full flex-col overflow-hidden rounded-[34px] border border-[var(--surface-border)] p-6 shadow-[0_36px_100px_var(--shadow-color)] transition-[transform,border-color,box-shadow] duration-300",
+        "motion-safe:hover:-translate-y-2 motion-safe:hover:rotate-[0.35deg] hover:border-[var(--accent-border)]",
+        isFeatured ? "min-h-[35rem]" : "min-h-[33rem]"
       ].join(" ")}
       style={{
-        backgroundImage: `radial-gradient(circle at top left, ${dominantColor}55, transparent 42%), linear-gradient(180deg, rgba(15,23,42,0.98) 0%, rgba(2,6,23,0.96) 100%)`
+        backgroundImage: `radial-gradient(circle at top left, color-mix(in srgb, ${dominantColor} 30%, rgb(var(--accent-rgb) / .18)), transparent 42%), linear-gradient(180deg, var(--surface-1) 0%, var(--surface-2) 100%)`
       }}
     >
+      <div className="absolute right-5 top-5 z-10">
+        <span
+          data-testid="catalog-reading-dot"
+          className={[
+            "block h-3 w-3 rounded-full",
+            readingStatus === "completed" ? "bg-emerald-300" : readingStatus === "in-progress" ? "bg-amber-300" : "hidden"
+          ].join(" ")}
+        />
+      </div>
+
       <div className="relative flex h-full flex-col">
-        <div className="book-cover-frame mb-5 overflow-hidden rounded-[24px] border border-white/10 bg-slate-900/70 p-2">
+        <div className="book-cover-frame mb-6 overflow-hidden rounded-[28px] border border-[var(--surface-border)] bg-[var(--surface-3)] p-2.5 transition-colors group-hover:border-[var(--accent-border)]">
           <Image
             src={imageSrc}
             alt={title}
             width={720}
             height={1080}
-            sizes={
-              isFeatured
-                ? "(max-width: 768px) 100vw, 420px"
-                : "(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 360px"
-            }
+            sizes={isFeatured ? "(max-width: 768px) 100vw, 420px" : "(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 360px"}
             placeholder={blurDataUrl ? "blur" : "empty"}
             blurDataURL={blurDataUrl ?? undefined}
-            className={[
-              "w-full rounded-[18px] object-cover shadow-2xl shadow-slate-950/50",
-              isFeatured ? "h-80" : "h-72"
-            ].join(" ")}
+            className={["w-full rounded-[18px] object-cover shadow-2xl", isFeatured ? "h-[22rem]" : "h-[19rem]"].join(" ")}
           />
         </div>
 
-        <p className="text-sm text-slate-400">{authors.join(", ")} · {year}</p>
-        <h2 className="mt-2 text-xl font-semibold text-slate-50">{title}</h2>
-        {subtitle ? (
-          <p className="mt-1 text-sm text-slate-400">{subtitle}</p>
-        ) : null}
-        <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-300">
-          {description}
-        </p>
-        <p className="mt-4 line-clamp-1 text-xs uppercase tracking-[0.18em] text-cyan-300">
-          {genreSummary}
-        </p>
-        <div className="mt-auto flex flex-wrap items-center gap-4 pt-5 text-sm font-medium">
-          <Link
-            href={`/books/${slug}`}
-            className="inline-flex text-cyan-300 transition hover:text-cyan-200"
-          >
-            Открыть карточку
-          </Link>
-          <Link
-            href={`/ar/books/${slug}`}
-            className="inline-flex text-slate-300 transition hover:text-cyan-200"
-          >
-            3D / AR
-          </Link>
-        </div>
+        <p className="text-sm text-[var(--text-secondary)]">{authors.join(", ")} · {year}</p>
+        <h2 id={titleId} className="mt-3 text-[1.45rem] font-semibold leading-tight text-[var(--text-primary)]">
+          <Link href={`/books/${slug}`} className="transition hover:text-[var(--accent-text)]">{title}</Link>
+        </h2>
+        {subtitle ? <p className="mt-1 text-sm text-[var(--text-muted)]">{subtitle}</p> : null}
+        <p className="mt-4 line-clamp-3 text-sm leading-7 text-[var(--text-secondary)]">{description}</p>
+        <p className="mt-5 line-clamp-1 text-xs uppercase tracking-[0.22em] text-[var(--accent-text)]">{genreSummary}</p>
       </div>
     </article>
   );

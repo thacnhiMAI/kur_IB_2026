@@ -1,8 +1,12 @@
+export type CatalogPaginationDirection = "next" | "prev";
+
 export type CatalogSearchParams = {
   q?: string;
   genre?: string;
   author?: string;
   year?: string;
+  cursor?: string;
+  direction?: CatalogPaginationDirection;
 };
 
 export type CatalogBookCoverAsset = {
@@ -35,6 +39,15 @@ export type CatalogBookRecord = {
     genre: CatalogFilterOption;
   }>;
   coverAssets: CatalogBookCoverAsset[];
+  contents: Array<{
+    id: string;
+    sourceType: "PDF" | "EXTERNAL_LINK";
+    status: "READY" | "PROCESSING" | "FAILED";
+    isPrimary: boolean;
+    storagePath: string | null;
+    publicUrl: string | null;
+    externalUrl: string | null;
+  }>;
 };
 
 export type CatalogBookCard = {
@@ -50,6 +63,11 @@ export type CatalogBookCard = {
   authors: string[];
   genres: string[];
   isFeatured: boolean;
+  readingMode: "internal" | "external" | "none";
+  readHref: string | null;
+  readLabel: "Читать" | "Открыть внешний источник" | null;
+  progressPercent: number;
+  readingStatus: "not-started" | "in-progress" | "completed";
 };
 
 export type CatalogBookDetail = {
@@ -72,11 +90,23 @@ export type CatalogBookDetail = {
   ratingAverage: number | null;
   ratingsCount: number | null;
   isFeatured: boolean;
+  readingMode: "internal" | "external" | "none";
+  readHref: string | null;
+  readLabel: "Читать" | "Открыть внешний источник" | null;
+  primaryContentId: string | null;
 };
 
 export type CatalogFilterOption = {
   slug: string;
   name: string;
+};
+
+export type CatalogPagination = {
+  pageSize: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  nextCursor: string | null;
+  previousCursor: string | null;
 };
 
 export type CatalogPageData = {
@@ -87,4 +117,5 @@ export type CatalogPageData = {
     authors: CatalogFilterOption[];
     years: number[];
   };
+  pagination: CatalogPagination;
 };

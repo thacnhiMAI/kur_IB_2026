@@ -11,7 +11,7 @@ import { taxonomySchema } from "@/lib/validators/taxonomy";
 export const dynamic = "force-dynamic";
 
 export default async function NewAdminAuthorPage() {
-  await requireAdmin();
+  await requireAdmin("/admin/authors/new");
 
   async function createAuthor(formData: FormData) {
     "use server";

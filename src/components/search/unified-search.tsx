@@ -26,34 +26,21 @@ const SSR_SUPPORT = {
   message: "Голосовой поиск недоступен в этом браузере."
 };
 
-export function UnifiedSearch({
-  label,
-  placeholder,
-  initialQuery = "",
-  onQueryChange
-}: UnifiedSearchProps) {
+export function UnifiedSearch({ label, placeholder, initialQuery = "", onQueryChange }: UnifiedSearchProps) {
   const inputId = useId();
   const stopListeningRef = useRef<(() => void) | null>(null);
   const [query, setQuery] = useState(initialQuery);
   const [isListening, setIsListening] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const support = useMemo(
-    () =>
-      typeof window === "undefined"
-        ? SSR_SUPPORT
-        : getVoiceSearchSupport(window as VoiceSearchWindow),
+    () => typeof window === "undefined" ? SSR_SUPPORT : getVoiceSearchSupport(window as VoiceSearchWindow),
     []
   );
 
-  useEffect(() => {
-    setQuery(initialQuery);
-  }, [initialQuery]);
-
-  useEffect(() => {
-    return () => {
-      stopListeningRef.current?.();
-      stopListeningRef.current = null;
-    };
+  useEffect(() => setQuery(initialQuery), [initialQuery]);
+  useEffect(() => () => {
+    stopListeningRef.current?.();
+    stopListeningRef.current = null;
   }, []);
 
   function updateQuery(nextQuery: string) {
@@ -76,13 +63,8 @@ export function UnifiedSearch({
 
     const voiceController = createVoiceSearchController(() => {
       const target = window as VoiceSearchWindow;
-      const Recognition =
-        target.SpeechRecognition ?? target.webkitSpeechRecognition;
-
-      if (!Recognition) {
-        throw new Error("Speech recognition is unavailable.");
-      }
-
+      const Recognition = target.SpeechRecognition ?? target.webkitSpeechRecognition;
+      if (!Recognition) throw new Error("Speech recognition is unavailable.");
       return new Recognition();
     });
 
@@ -91,26 +73,15 @@ export function UnifiedSearch({
       onTranscript: updateQuery,
       onStateChange: (listening) => {
         setIsListening(listening);
-
-        if (!listening) {
-          stopListeningRef.current = null;
-        }
+        if (!listening) stopListeningRef.current = null;
       },
-      onError: (nextMessage) => {
-        setMessage(nextMessage);
-      }
+      onError: setMessage
     });
   }
 
   return (
     <div className="space-y-3">
-      <label
-        htmlFor={inputId}
-        className="block text-sm font-medium text-slate-200"
-      >
-        {label}
-      </label>
-
+      <label htmlFor={inputId} className="block text-sm font-medium text-[var(--text-secondary)]">{label}</label>
       <div className="flex gap-3">
         <input
           id={inputId}
@@ -118,21 +89,19 @@ export function UnifiedSearch({
           value={query}
           onChange={(event) => updateQuery(event.target.value)}
           placeholder={placeholder}
-          className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/20"
+          className="concept-input min-w-0 flex-1 rounded-xl px-4 py-3 text-sm"
         />
-
         <button
           type="button"
           onClick={handleVoiceClick}
           aria-pressed={isListening}
           aria-label={isListening ? "Остановить голосовой поиск" : "Включить голосовой поиск"}
-          className="rounded-lg border border-cyan-400/40 px-4 py-3 text-sm font-medium text-cyan-200 transition hover:border-cyan-300 hover:text-cyan-100"
+          className="concept-button-secondary rounded-xl px-4 py-3 text-sm font-medium text-[var(--accent-text)]"
         >
           {isListening ? "Слушаю..." : "Голос"}
         </button>
       </div>
-
-      {message ? <p className="text-xs text-slate-400">{message}</p> : null}
+      {message ? <p className="text-xs text-[var(--text-muted)]">{message}</p> : null}
     </div>
   );
 }

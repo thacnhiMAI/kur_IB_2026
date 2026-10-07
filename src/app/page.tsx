@@ -1,54 +1,14 @@
-import Link from "next/link";
+import React from "react";
 
-import { buildPageMetadata } from "@/lib/site/metadata";
+import { HomepageBlackBlue } from "@/components/home/homepage-black-blue";
 
-export const metadata = buildPageMetadata({
-  title: "Главная",
-  description: "Каталог книг, рекомендации, AR-превью и PWA-функции выпускного проекта.",
-  path: "/"
-});
+export const metadata = {
+  title: "Умная библиотека — откройте новый мир",
+  description:
+    "Пространство для чтения, поиска и новых идей. Найдите вдохновение в Умной библиотеке.",
+  icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" }
+};
 
 export default function HomePage() {
-  return (
-    <section className="grid gap-10 md:grid-cols-[1.3fr_0.7fr] md:items-center">
-      <div className="space-y-6">
-        <span className="inline-flex rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-sm text-cyan-200">
-          MVP умной библиотеки
-        </span>
-        <div className="space-y-4">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Умная библиотека</h1>
-          <p className="max-w-2xl text-lg leading-8 text-slate-300">
-            Каталог книг с персональными рекомендациями, отзывами, избранным,
-            3D / AR-просмотром, голосовым поиском и PWA-режимом.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-4">
-          <Link
-            href="/catalog"
-            className="rounded-lg bg-cyan-400 px-5 py-3 font-medium text-slate-950 transition hover:bg-cyan-300"
-          >
-            Каталог
-          </Link>
-          <Link
-            href="/recommendations"
-            className="rounded-lg border border-slate-700 px-5 py-3 font-medium transition hover:border-cyan-300 hover:text-cyan-200"
-          >
-            Рекомендации
-          </Link>
-        </div>
-      </div>
-
-      <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl shadow-cyan-950/20">
-        <div className="space-y-4">
-          <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Как использовать</p>
-          <ul className="space-y-3 text-slate-200">
-            <li>AI: откройте раздел «Рекомендации» после входа в аккаунт.</li>
-            <li>3D / AR: используйте кнопку `3D / AR` в карточке книги или на странице книги.</li>
-            <li>Голос: нажмите кнопку «Голос» в блоке поиска каталога.</li>
-            <li>PWA: установите сайт через меню браузера, офлайн-страницы уже работают.</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-  );
+  return <HomepageBlackBlue />;
 }

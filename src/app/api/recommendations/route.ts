@@ -4,15 +4,30 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { generateRecommendationsForUser } from "@/lib/recommendations/service";
 
-export async function GET() {
-  const session = await auth();
+async function getSessionUserId() {
+  const sessionUserId = (await auth())?.user?.id;
 
-  if (!session?.user?.id) {
+  if (!sessionUserId) {
+    return null;
+  }
+
+  const user = await db.user.findUnique({
+    where: { id: sessionUserId },
+    select: { id: true }
+  });
+
+  return user?.id ?? null;
+}
+
+export async function GET() {
+  const userId = await getSessionUserId();
+
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const snapshot = await db.recommendationSnapshot.findFirst({
-    where: { userId: session.user.id },
+    where: { userId },
     include: {
       items: {
         include: { book: true },
@@ -26,12 +41,12 @@ export async function GET() {
 }
 
 export async function POST() {
-  const session = await auth();
+  const userId = await getSessionUserId();
 
-  if (!session?.user?.id) {
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const snapshot = await generateRecommendationsForUser(session.user.id);
+  const snapshot = await generateRecommendationsForUser(userId);
   return NextResponse.json(snapshot);
 }

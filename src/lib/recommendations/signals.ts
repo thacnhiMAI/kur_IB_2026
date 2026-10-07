@@ -7,7 +7,7 @@ function unique(values: string[]) {
 }
 
 export async function buildRecommendationContext(userId: string): Promise<RecommendationContext> {
-  const [favorites, history, reviews] = await Promise.all([
+  const [favorites, history, reviews, progress] = await Promise.all([
     db.favorite.findMany({
       where: { userId },
       include: {
@@ -34,8 +34,9 @@ export async function buildRecommendationContext(userId: string): Promise<Recomm
     db.review.findMany({
       where: {
         userId,
-        status: "PUBLISHED"
+        status: { in: ["PUBLISHED", "PENDING"] }
       },
+      orderBy: { updatedAt: "asc" },
       include: {
         book: {
           include: {
@@ -44,6 +45,11 @@ export async function buildRecommendationContext(userId: string): Promise<Recomm
           }
         }
       }
+    }),
+    db.readingProgress.findMany({
+      where: { userId, OR: [{ progressPercent: { gt: 0 } }, { lastPage: { gt: 0 } }] },
+      include: { book: { include: { genres: { include: { genre: true } }, authors: { include: { author: true } } } } },
+      orderBy: { updatedAt: "desc" }
     })
   ]);
 
@@ -58,7 +64,17 @@ export async function buildRecommendationContext(userId: string): Promise<Recomm
     userId,
     favoriteBooks: favorites.map((item) => ({
       bookId: item.bookId,
-      title: item.book.title
+      title: item.book.title,
+      description: item.book.description,
+      genres: item.book.genres.map((entry) => entry.genre.name),
+      authors: item.book.authors.map((entry) => entry.author.name)
+    })),
+    readingProgress: progress.map((item) => ({
+      bookId: item.bookId, title: item.book.title, progressPercent: item.progressPercent,
+      completedAt: item.completedAt?.toISOString() ?? null,
+      description: item.book.description,
+      genres: item.book.genres.map((entry) => entry.genre.name),
+      authors: item.book.authors.map((entry) => entry.author.name)
     })),
     favoriteGenres,
     favoriteAuthors,
@@ -66,6 +82,8 @@ export async function buildRecommendationContext(userId: string): Promise<Recomm
       bookId: item.bookId,
       title: item.book.title,
       eventType: item.eventType,
+      createdAt: item.createdAt.toISOString(),
+      description: item.book.description,
       genres: item.book.genres.map((entry) => entry.genre.name),
       authors: item.book.authors.map((entry) => entry.author.name)
     })),
@@ -79,7 +97,9 @@ export async function buildRecommendationContext(userId: string): Promise<Recomm
     })),
     excludedBookIds: unique([
       ...favorites.map((item) => item.bookId),
-      ...history.filter((item) => item.eventType === "FINISHED").map((item) => item.bookId)
+      ...history.filter((item) => item.eventType === "FINISHED").map((item) => item.bookId),
+      ...progress.map((item) => item.bookId),
+      ...reviews.map((item) => item.bookId)
     ])
   };
 }

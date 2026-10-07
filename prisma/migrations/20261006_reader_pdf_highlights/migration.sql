@@ -1,0 +1,2 @@
+ALTER TABLE "ReaderAnnotation"
+ADD COLUMN IF NOT EXISTS "rects" JSONB;

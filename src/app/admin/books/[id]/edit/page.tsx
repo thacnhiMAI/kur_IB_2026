@@ -3,10 +3,14 @@ import { notFound, redirect } from "next/navigation";
 
 import { AdminSectionNav } from "@/components/admin/admin-section-nav";
 import { BookForm } from "@/components/admin/book-form";
+import { applyUploadedCoverToBook } from "@/lib/admin/cover-upload";
 import { parseBookPayload } from "@/lib/admin/book-input";
 import { requireAdmin } from "@/lib/auth";
+import { canonicalBookSlug } from "@/lib/books/slug";
 import { revalidatePublicCatalogPaths } from "@/lib/catalog/public-cache";
 import { db } from "@/lib/db";
+import { bookContentInputSchema } from "@/lib/reading/content-input";
+import { syncBookContentSources } from "@/lib/reading/content-management";
 
 export const dynamic = "force-dynamic";
 
@@ -15,8 +19,9 @@ export default async function EditAdminBookPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireAdmin();
   const { id } = await params;
+  await requireAdmin(`/admin/books/${id}/edit`);
+
   const [authors, genres] = await Promise.all([
     db.author.findMany({ orderBy: { name: "asc" } }),
     db.genre.findMany({ orderBy: { name: "asc" } })
@@ -26,7 +31,10 @@ export default async function EditAdminBookPage({
     where: { id },
     include: {
       authors: true,
-      genres: true
+      genres: true,
+      contents: {
+        orderBy: [{ isPrimary: "desc" }, { updatedAt: "desc" }]
+      }
     }
   });
 
@@ -35,19 +43,24 @@ export default async function EditAdminBookPage({
   }
 
   const currentSlug = book.slug;
+  const currentCoverImage = book.coverImage;
 
   async function updateBook(formData: FormData) {
     "use server";
 
-    await requireAdmin();
+    const admin = await requireAdmin();
+
+    const coverFileEntry = formData.get("coverFile");
+    const coverFile =
+      coverFileEntry instanceof File && coverFileEntry.size > 0 ? coverFileEntry : null;
 
     const parsed = parseBookPayload({
       title: String(formData.get("title") ?? ""),
       subtitle: String(formData.get("subtitle") ?? ""),
       originalTitle: String(formData.get("originalTitle") ?? ""),
-      slug: String(formData.get("slug") ?? ""),
+      slug: canonicalBookSlug(String(formData.get("slug") ?? ""), String(formData.get("title") ?? "")),
       description: String(formData.get("description") ?? ""),
-      coverImage: String(formData.get("coverImage") ?? ""),
+      coverImage: coverFile ? "" : String(formData.get("coverImage") ?? ""),
       year: Number(formData.get("year")),
       isbn: String(formData.get("isbn") ?? "") || undefined,
       isbn10: String(formData.get("isbn10") ?? "") || undefined,
@@ -62,6 +75,14 @@ export default async function EditAdminBookPage({
       genreIds: formData.getAll("genreIds")
     });
 
+    const parsedContent = bookContentInputSchema.parse({
+      externalUrl: String(formData.get("externalUrl") ?? ""),
+      makePdfPrimary: formData.get("makePdfPrimary") === "on"
+    });
+
+    const pdfFileEntry = formData.get("pdfFile");
+    const pdfFile = pdfFileEntry instanceof File && pdfFileEntry.size > 0 ? pdfFileEntry : null;
+
     const updatedBook = await db.book.update({
       where: { id },
       data: {
@@ -70,7 +91,7 @@ export default async function EditAdminBookPage({
         originalTitle: parsed.originalTitle || null,
         slug: parsed.slug,
         description: parsed.description,
-        coverImage: parsed.coverImage || null,
+        coverImage: coverFile ? currentCoverImage : parsed.coverImage || null,
         year: parsed.year,
         isbn: parsed.isbn || null,
         isbn10: parsed.isbn10 || null,
@@ -92,6 +113,23 @@ export default async function EditAdminBookPage({
       }
     });
 
+    if (coverFile) {
+      await applyUploadedCoverToBook({
+        bookId: updatedBook.id,
+        slug: updatedBook.slug,
+        file: coverFile
+      });
+    }
+
+    await syncBookContentSources({
+      bookId: updatedBook.id,
+      slug: updatedBook.slug,
+      userId: admin.id,
+      pdfFile,
+      externalUrl: parsedContent.externalUrl ?? "",
+      makePdfPrimary: parsedContent.makePdfPrimary
+    });
+
     await revalidatePublicCatalogPaths({
       bookSlugs: [currentSlug, updatedBook.slug]
     });
@@ -100,19 +138,33 @@ export default async function EditAdminBookPage({
   }
 
   return (
-    <section className="space-y-6">
+    <section data-testid="admin-shell" className="space-y-8">
       <AdminSectionNav current="books" />
 
-      <div>
-        <h1 className="text-3xl font-bold">Редактирование книги</h1>
-        <p className="mt-2 text-slate-300">Обновите описание, metadata и параметры карточки книги.</p>
+      <div className="space-y-3 border-b border-white/10 pb-6">
+        <p className="text-xs uppercase tracking-[0.22em] text-[var(--accent-text)]">Admin</p>
+        <div>
+          <h1 className="text-4xl font-semibold text-white">Редактирование книги</h1>
+          <p className="mt-2 text-[var(--text-secondary)]">
+            Обновите описание, metadata и параметры карточки книги.
+          </p>
+        </div>
       </div>
+
       <BookForm
         action={updateBook}
         submitLabel="Сохранить изменения"
         options={{
-          authors: authors.map((author) => ({ id: author.id, name: author.name })),
-          genres: genres.map((genre) => ({ id: genre.id, name: genre.name }))
+          authors: authors.map((author) => ({
+            id: author.id,
+            name: author.name,
+            slug: author.slug
+          })),
+          genres: genres.map((genre) => ({
+            id: genre.id,
+            name: genre.name,
+            slug: genre.slug
+          }))
         }}
         initialValues={{
           title: book.title,
@@ -132,7 +184,17 @@ export default async function EditAdminBookPage({
           isFeatured: book.isFeatured,
           isPublished: book.isPublished,
           authorIds: book.authors.map((author) => author.authorId),
-          genreIds: book.genres.map((genre) => genre.genreId)
+          genreIds: book.genres.map((genre) => genre.genreId),
+          externalUrl:
+            book.contents.find((content) => content.sourceType === "EXTERNAL_LINK")?.externalUrl ??
+            null,
+          contentSummary: book.contents.map((content) => {
+            if (content.sourceType === "PDF") {
+              return `${content.isPrimary ? "Основной PDF" : "PDF"}: ${content.fileName ?? "uploaded file"}`;
+            }
+
+            return `${content.isPrimary ? "Основная внешняя ссылка" : "Внешняя ссылка"}: ${content.externalUrl ?? "не указана"}`;
+          })
         }}
       />
     </section>

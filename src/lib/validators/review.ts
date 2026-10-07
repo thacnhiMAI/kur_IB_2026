@@ -1,11 +1,8 @@
 import { z } from "zod";
 
 export const reviewSchema = z.object({
-  rating: z.number().int().min(1).max(5),
-  content: z
-    .string()
-    .min(20, "Отзыв должен содержать минимум 20 символов.")
-    .max(2000, "Отзыв не должен превышать 2000 символов.")
+  rating: z.coerce.number().int().min(1, "Поставьте оценку от 1 до 5.").max(5, "Поставьте оценку от 1 до 5."),
+  content: z.string().trim().min(10, "Отзыв должен содержать минимум 10 символов.").max(3000, "Отзыв слишком длинный.")
 });
 
 export type ReviewInput = z.infer<typeof reviewSchema>;

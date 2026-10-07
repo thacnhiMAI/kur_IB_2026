@@ -38,4 +38,32 @@ describe("bookSchema", () => {
     expect(result.isbn13).toBe("9780441478125");
     expect(result.isFeatured).toBe(true);
   });
+
+  it("accepts local cover paths under /covers", () => {
+    const parsed = bookSchema.parse({
+      title: "Local Cover Book",
+      slug: "local-cover-book",
+      description: "A book with a locally stored cover image.",
+      coverImage: "/covers/local-cover-book-admin-upload.jpg",
+      year: 2020,
+      language: "ru",
+      pages: 120
+    });
+
+    expect(parsed.coverImage).toBe("/covers/local-cover-book-admin-upload.jpg");
+  });
+
+  it("rejects arbitrary relative cover paths outside /covers", () => {
+    expect(() =>
+      bookSchema.parse({
+        title: "Invalid Local Cover",
+        slug: "invalid-local-cover",
+        description: "A book with an invalid relative cover path.",
+        coverImage: "/uploads/not-allowed.jpg",
+        year: 2020,
+        language: "ru",
+        pages: 120
+      })
+    ).toThrow();
+  });
 });

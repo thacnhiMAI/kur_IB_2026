@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 export type RecommendationCandidate = {
   id: string;
   title: string;
+  description?: string;
   slug: string;
   coverImage: string | null;
   authors: string[];
@@ -27,6 +28,7 @@ export async function getRecommendationCandidates(): Promise<RecommendationCandi
   return books.map((book) => ({
     id: book.id,
     title: book.title,
+    description: book.description,
     slug: book.slug,
     coverImage: book.coverAssets[0]?.publicUrl ?? book.coverImage ?? null,
     authors: book.authors.map((entry) => entry.author.name),

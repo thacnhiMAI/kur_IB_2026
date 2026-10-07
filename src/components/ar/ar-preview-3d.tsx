@@ -2,42 +2,37 @@
 
 import React from "react";
 
-import { BookSolidRenderer } from "@/components/ar/book-solid-renderer";
-import { FloatingCardRenderer } from "@/components/ar/floating-card-renderer";
-import { DEFAULT_AR_COVER, DEFAULT_AR_COLOR } from "@/lib/ar/types";
+import { ARReaderLite } from "@/components/ar/ar-reader-lite";
 
 import type { ARRendererVariant } from "@/lib/ar/capabilities";
 import type { ARBookPayload } from "@/lib/ar/types";
 
 export function ARPreview3D({
   book,
-  renderer
+  renderer,
+  pdfUrl,
+  isAuthenticated
 }: {
   book: ARBookPayload;
   renderer: ARRendererVariant;
+  pdfUrl?: string | null;
+  isAuthenticated: boolean;
 }) {
   return (
-    <div
-      data-testid="ar-preview-3d"
-      className="overflow-hidden rounded-[32px] border border-white/10 bg-slate-950/85 shadow-[0_24px_80px_rgba(2,6,23,0.35)]"
-    >
-      <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
-        <p className="text-sm font-medium uppercase tracking-[0.18em] text-cyan-300">
-          3D Preview
-        </p>
-        <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-          {renderer === "book-solid" ? "solid-renderer" : "floating-card"}
+    <div data-testid="ar-preview-3d" className="concept-panel overflow-hidden rounded-[32px]">
+      <div className="flex flex-col gap-2 border-b border-[var(--surface-border)] px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="concept-kicker">{pdfUrl && isAuthenticated ? "3D PDF Reader" : "3D Preview"}</p>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">
+            Реальные страницы PDF используются только когда у книги есть внутренний файл и пользователь вошёл в аккаунт.
+          </p>
+        </div>
+        <p className="concept-pill w-fit rounded-full px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.16em]">
+          {renderer === "book-solid" ? "solid CSS 3D" : "CSS 3D card"}
         </p>
       </div>
-      <div className="flex min-h-[520px] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.14),transparent_34%),linear-gradient(180deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] px-8 py-12">
-        {renderer === "book-solid" ? (
-          <BookSolidRenderer
-            color={book.dominantColor ?? DEFAULT_AR_COLOR}
-            title={book.title}
-          />
-        ) : (
-          <FloatingCardRenderer coverImage={book.coverImage ?? DEFAULT_AR_COVER} />
-        )}
+      <div className="bg-[radial-gradient(circle_at_top,rgb(var(--accent-rgb)/0.14),transparent_42%)] px-5 py-9 sm:px-8 sm:py-12">
+        <ARReaderLite book={book} renderer={renderer} pdfUrl={pdfUrl} isAuthenticated={isAuthenticated} />
       </div>
     </div>
   );

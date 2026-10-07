@@ -60,13 +60,6 @@ function runNpm(args, options = {}) {
   }
 }
 
-function hasGeneratedPrismaClient() {
-  const prismaClientDir = path.join(projectRoot, "node_modules", ".prisma", "client");
-  const clientEntrypoints = ["client.js", "default.js", "index.js"];
-
-  return fs.existsSync(prismaClientDir) && clientEntrypoints.some((file) => fs.existsSync(path.join(prismaClientDir, file)));
-}
-
 function isPortInUse(port) {
   return new Promise((resolve) => {
     const socket = new net.Socket();
@@ -158,17 +151,16 @@ async function main() {
 
   await waitForPostgresHealth();
 
-  if (hasGeneratedPrismaClient()) {
-    console.log("Prisma client already exists, skipping regenerate.");
-  } else {
-    console.log("Generating Prisma client...");
-    runNpm(["run", "db:generate"]);
-  }
+  console.log("Generating Prisma client from the current schema...");
+  runNpm(["run", "db:generate"]);
 
   console.log("Applying Prisma migrations...");
   runNpm(["run", "db:deploy"]);
 
-  console.log("Seeding demo data...");
+  console.log("Migrating legacy public reading files to private storage...");
+  runNpm(["run", "migrate:reading-storage"]);
+
+  console.log("Ensuring demo bootstrap data (non-destructive)...");
   runNpm(["run", "db:seed"]);
 
   if (devServerRunning) {

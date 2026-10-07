@@ -1,5 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
-import { vi } from "vitest";
+import type { ReactElement, ReactNode } from "react";
+import { beforeEach, vi } from "vitest";
 
 const { generateRecommendationsForUser, getLatestRecommendationSnapshot } = vi.hoisted(() => ({
   generateRecommendationsForUser: vi.fn(),
@@ -11,6 +12,7 @@ vi.mock("@/lib/auth", () => ({
     id: "user-1",
     name: "Reader",
     email: "reader@example.com",
+    image: null,
     role: "USER"
   }))
 }));
@@ -22,7 +24,41 @@ vi.mock("@/lib/recommendations/service", () => ({
 
 import RecommendationsPage from "@/app/recommendations/page";
 
+function findElementByType(node: ReactNode, type: string): ReactElement | null {
+  if (!node || typeof node !== "object") {
+    return null;
+  }
+
+  if ("type" in node && node.type === type) {
+    return node as ReactElement;
+  }
+
+  if (!("props" in node)) {
+    return null;
+  }
+
+  const children = node.props?.children;
+
+  if (Array.isArray(children)) {
+    for (const child of children) {
+      const match = findElementByType(child, type);
+
+      if (match) {
+        return match;
+      }
+    }
+
+    return null;
+  }
+
+  return findElementByType(children, type);
+}
+
 describe("RecommendationsPage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("shows recommendation hero, insights, and rich card details", async () => {
     getLatestRecommendationSnapshot.mockResolvedValue({
       id: "snapshot-1",
@@ -59,11 +95,14 @@ describe("RecommendationsPage", () => {
       ]
     });
 
-    render(await RecommendationsPage());
+    const page = await RecommendationsPage();
+
+    render(page);
 
     expect(
       screen.getByRole("heading", { name: "Персональные рекомендации" })
     ).toBeInTheDocument();
+    expect(getLatestRecommendationSnapshot).toHaveBeenCalledWith("user-1");
     expect(screen.getByText("Любимые жанры")).toBeInTheDocument();
     expect(screen.getByText("Дизайн, UX")).toBeInTheDocument();
     expect(screen.getByText("author-match")).toBeInTheDocument();
@@ -81,14 +120,23 @@ describe("RecommendationsPage", () => {
         .getAttribute("src")
     ).toContain("emotional-design.jpg");
     expect(card).toBeInTheDocument();
+
+    const refreshForm = findElementByType(page, "form");
+
+    expect(refreshForm).not.toBeNull();
+    await refreshForm?.props.action();
+    expect(generateRecommendationsForUser).toHaveBeenCalledWith("user-1");
   });
 
   it("shows placeholders when no snapshot is available yet", async () => {
     getLatestRecommendationSnapshot.mockResolvedValue(null);
 
-    render(await RecommendationsPage());
+    const page = await RecommendationsPage();
+
+    render(page);
 
     expect(screen.getAllByText("Нет данных")).toHaveLength(4);
+    expect(getLatestRecommendationSnapshot).toHaveBeenCalledWith("user-1");
     expect(
       screen.getByText("Нажмите кнопку выше, чтобы получить первую персональную подборку.")
     ).toBeInTheDocument();

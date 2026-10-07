@@ -13,14 +13,32 @@ enum UserRole {
 }
 
 enum ReviewStatus {
+  PENDING
   PUBLISHED
   HIDDEN
+  REJECTED
+}
+
+enum VerificationPurpose {
+  SIGN_UP
+  PASSWORD_RESET
 }
 
 enum ReadingEventType {
   VIEWED
   INTERESTED
   FINISHED
+}
+
+enum BookContentSourceType {
+  PDF
+  EXTERNAL_LINK
+}
+
+enum BookContentStatus {
+  READY
+  PROCESSING
+  FAILED
 }
 
 model User {
@@ -31,6 +49,11 @@ model User {
   image                   String?
   passwordHash            String?
   role                    UserRole                 @default(USER)
+  bannedUntil             DateTime?
+  bannedPermanently       Boolean                  @default(false)
+  banReason               String?
+  lastLoginAt             DateTime?
+  authVersion             Int                      @default(0)
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
   accounts                Account[]
@@ -38,7 +61,14 @@ model User {
   reviews                 Review[]
   favorites               Favorite[]
   readingHistory          ReadingHistory[]
+  readingProgress         ReadingProgress[]
   recommendationSnapshots RecommendationSnapshot[]
+  uploadedBookContents    BookContent[]            @relation("UploadedBookContents")
+  adminAuditLogs          AdminAuditLog[]           @relation("AdminAuditActor")
+  notifications           Notification[]
+  readerAnnotations       ReaderAnnotation[]
+  avatarBlob              UserAvatar?
+  readerAiConversations   ReaderAiConversation[]
 }
 
 model Book {
@@ -73,7 +103,11 @@ model Book {
   reviews          Review[]
   favorites        Favorite[]
   readingHistory   ReadingHistory[]
+  readingProgress  ReadingProgress[]
   recommendedIn    RecommendationItem[]
+  contents         BookContent[]
+  readerAnnotations ReaderAnnotation[]
+  readerAiConversations ReaderAiConversation[]
 }
 
 model BookSourceRecord {
@@ -141,7 +175,7 @@ model Review {
   id        String       @id @default(cuid())
   rating    Int
   content   String
-  status    ReviewStatus @default(PUBLISHED)
+  status    ReviewStatus @default(PENDING)
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
   userId    String
@@ -149,7 +183,8 @@ model Review {
   user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   book      Book         @relation(fields: [bookId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, bookId])
+  @@index([userId, bookId, createdAt])
+  @@index([bookId, status, createdAt])
 }
 
 model Favorite {
@@ -163,6 +198,29 @@ model Favorite {
   @@unique([userId, bookId])
 }
 
+model BookContent {
+  id               String                @id @default(cuid())
+  bookId           String
+  sourceType       BookContentSourceType
+  storagePath      String?
+  publicUrl        String?
+  externalUrl      String?
+  fileName         String?
+  mimeType         String?
+  uploadedByUserId String?
+  isPrimary        Boolean               @default(false)
+  status           BookContentStatus     @default(READY)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  book             Book                  @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  uploadedByUser   User?                 @relation("UploadedBookContents", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  readingProgress  ReadingProgress[]
+  readerAnnotations ReaderAnnotation[]
+  readerAiConversations ReaderAiConversation[]
+
+  @@index([bookId, isPrimary])
+}
+
 model ReadingHistory {
   id        String           @id @default(cuid())
   eventType ReadingEventType
@@ -171,6 +229,23 @@ model ReadingHistory {
   bookId    String
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   book      Book             @relation(fields: [bookId], references: [id], onDelete: Cascade)
+}
+
+model ReadingProgress {
+  id              String      @id @default(cuid())
+  userId          String
+  bookId          String
+  contentId       String?
+  progressPercent Float       @default(0)
+  lastPage        Int         @default(0)
+  totalPages      Int         @default(0)
+  completedAt     DateTime?
+  updatedAt       DateTime    @updatedAt
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book            Book        @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  content         BookContent? @relation(fields: [contentId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, bookId])
 }
 
 model RecommendationSnapshot {
@@ -232,4 +307,115 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+
+model EmailVerificationCode {
+  id         String              @id @default(cuid())
+  email      String
+  purpose    VerificationPurpose
+  codeHash   String
+  expiresAt  DateTime
+  lastSentAt DateTime
+  attempts   Int                 @default(0)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  @@unique([email, purpose])
+  @@index([expiresAt])
+}
+
+model AuthRateLimit {
+  key             String   @id
+  count           Int      @default(0)
+  windowStartedAt DateTime @default(now())
+  blockedUntil    DateTime?
+  updatedAt       DateTime @updatedAt
+}
+
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  adminUserId String?
+  action      String
+  targetType  String
+  targetId    String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  adminUser   User?    @relation("AdminAuditActor", fields: [adminUserId], references: [id], onDelete: SetNull)
+
+  @@index([adminUserId, createdAt])
+  @@index([targetType, targetId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  body      String
+  href      String?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+}
+
+model ReaderAnnotation {
+  id        String       @id @default(cuid())
+  userId    String
+  bookId    String
+  contentId String?
+  page      Int
+  quote     String?      @db.Text
+  note      String?      @db.Text
+  rects     Json?
+  color     String       @default("yellow")
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book      Book         @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  content   BookContent? @relation(fields: [contentId], references: [id], onDelete: SetNull)
+
+  @@index([userId, bookId, page])
+  @@index([bookId, page])
+}
+
+model UserAvatar {
+  userId    String   @id
+  data      Bytes
+  mimeType  String
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+
+model ReaderAiConversation {
+  id        String            @id @default(cuid())
+  userId    String
+  bookId    String
+  contentId String?
+  scope     String
+  page      Int?
+  title     String
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book      Book              @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  content   BookContent?      @relation(fields: [contentId], references: [id], onDelete: SetNull)
+  messages  ReaderAiMessage[]
+
+  @@index([userId, bookId, updatedAt])
+  @@index([userId, bookId, scope, page])
+}
+
+model ReaderAiMessage {
+  id             String               @id @default(cuid())
+  conversationId String
+  role           String
+  content        String               @db.Text
+  createdAt      DateTime             @default(now())
+  conversation   ReaderAiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
 }

@@ -27,8 +27,8 @@ describe("SignUpPage", () => {
     process.env.GOOGLE_CLIENT_SECRET = originalGoogleClientSecret;
   });
 
-  it("shows direct Gmail signup when Google OAuth is configured", () => {
-    render(<SignUpPage />);
+  it("shows direct Gmail signup when Google OAuth is configured", async () => {
+    render(await SignUpPage({ searchParams: Promise.resolve({}) }));
 
     expect(screen.getByRole("button", { name: "Регистрация через Google" })).toBeInTheDocument();
     expect(

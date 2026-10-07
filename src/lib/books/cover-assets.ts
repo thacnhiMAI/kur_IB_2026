@@ -14,6 +14,14 @@ export type CacheCoverAssetInput = {
   quality?: number;
 };
 
+export type CacheCoverAssetFromBufferInput = {
+  slug: string;
+  identifier: string;
+  buffer: Buffer;
+  maxWidth?: number;
+  quality?: number;
+};
+
 export type CachedCoverAsset = {
   cachedPath: string;
   publicUrl: string;
@@ -72,16 +80,16 @@ export function normalizeDominantColor(color: string) {
   return trimmed.toUpperCase();
 }
 
-export async function cacheCoverAsset(input: CacheCoverAssetInput): Promise<CachedCoverAsset> {
+async function writeProcessedCover(input: {
+  slug: string;
+  identifier: string;
+  sourceBuffer: Buffer;
+  maxWidth?: number;
+  quality?: number;
+}): Promise<CachedCoverAsset> {
   await fs.mkdir(getCoversDir(), { recursive: true });
 
-  const response = await fetch(input.url);
-  if (!response.ok) {
-    throw new Error(`Cover download failed: ${response.status}`);
-  }
-
-  const sourceBuffer = Buffer.from(await response.arrayBuffer());
-  const image = sharp(sourceBuffer);
+  const image = sharp(input.sourceBuffer);
   const stats = await image.stats();
   const outputRelativePath = buildCoverStoragePath(input.slug, input.identifier);
   const outputAbsolutePath = path.join(process.cwd(), outputRelativePath);
@@ -110,4 +118,31 @@ export async function cacheCoverAsset(input: CacheCoverAssetInput): Promise<Cach
     dominantColor,
     blurDataUrl: await buildBlurDataUrl(data)
   };
+}
+
+export async function cacheCoverAsset(input: CacheCoverAssetInput): Promise<CachedCoverAsset> {
+  const response = await fetch(input.url);
+  if (!response.ok) {
+    throw new Error(`Cover download failed: ${response.status}`);
+  }
+
+  return writeProcessedCover({
+    slug: input.slug,
+    identifier: input.identifier,
+    sourceBuffer: Buffer.from(await response.arrayBuffer()),
+    maxWidth: input.maxWidth,
+    quality: input.quality
+  });
+}
+
+export async function cacheCoverAssetFromBuffer(
+  input: CacheCoverAssetFromBufferInput
+): Promise<CachedCoverAsset> {
+  return writeProcessedCover({
+    slug: input.slug,
+    identifier: input.identifier,
+    sourceBuffer: input.buffer,
+    maxWidth: input.maxWidth,
+    quality: input.quality
+  });
 }

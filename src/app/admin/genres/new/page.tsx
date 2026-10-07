@@ -11,7 +11,7 @@ import { taxonomySchema } from "@/lib/validators/taxonomy";
 export const dynamic = "force-dynamic";
 
 export default async function NewAdminGenrePage() {
-  await requireAdmin();
+  await requireAdmin("/admin/genres/new");
 
   async function createGenre(formData: FormData) {
     "use server";

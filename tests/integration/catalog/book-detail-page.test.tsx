@@ -3,9 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CatalogBookRecord } from "@/lib/catalog/queries";
 
-const { bookFindFirst } = vi.hoisted(() => ({
-  bookFindFirst: vi.fn()
+const { bookFindFirst, favoriteFindUnique, progressFindFirst, auth } = vi.hoisted(() => ({
+  bookFindFirst: vi.fn(),
+  favoriteFindUnique: vi.fn(),
+  progressFindFirst: vi.fn(),
+  auth: vi.fn()
 }));
+
+vi.mock("@/auth", () => ({ auth }));
 
 const { notFound } = vi.hoisted(() => ({
   notFound: vi.fn(() => {
@@ -17,6 +22,12 @@ vi.mock("@/lib/db", () => ({
   db: {
     book: {
       findFirst: bookFindFirst
+    },
+    favorite: {
+      findUnique: favoriteFindUnique
+    },
+    readingProgress: {
+      findFirst: progressFindFirst
     }
   }
 }));
@@ -27,9 +38,11 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/books/actions", () => ({
   toggleFavoriteForBook: vi.fn(async () => {}),
-  recordBookInterest: vi.fn(async () => {}),
-  recordBookFinished: vi.fn(async () => {}),
   submitBookReview: vi.fn(async () => {})
+}));
+
+vi.mock("@/auth", () => ({
+  auth: vi.fn(async () => null)
 }));
 
 import BookDetailPage from "@/app/books/[slug]/page";
@@ -89,6 +102,17 @@ function createBookDetailRecord(
           }
         ]
       : [],
+    contents: [
+      {
+        id: "content-1",
+        sourceType: "PDF",
+        status: "READY",
+        isPrimary: true,
+        storagePath: "D:/lab/Kur_IB/public/reading/design.pdf",
+        publicUrl: "/reading/design.pdf",
+        externalUrl: null
+      }
+    ],
     ...overrides
   };
 }
@@ -96,6 +120,9 @@ function createBookDetailRecord(
 describe("getBookDetailPageData", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    auth.mockResolvedValue(null);
+    favoriteFindUnique.mockResolvedValue(null);
+    progressFindFirst.mockResolvedValue(null);
   });
 
   it("returns cached cover data and richer metadata for a published book", async () => {
@@ -173,6 +200,11 @@ describe("getBookDetailPageData", () => {
     expect(screen.getByText("MIT Press")).toBeInTheDocument();
     expect(screen.getByText(/ISBN-13:/i)).toBeInTheDocument();
     expect(screen.getByText("9780441172719")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Чтение книги" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Читать" })).toHaveAttribute(
+      "href",
+      "/read/books/design-of-everyday-things"
+    );
     expect(screen.getByRole("heading", { name: "3D / AR Preview" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Открыть 3D / AR" })).toHaveAttribute(
       "href",
@@ -182,7 +214,7 @@ describe("getBookDetailPageData", () => {
       "sizes",
       "(max-width: 1280px) 100vw, 380px"
     );
-    expect(screen.getByTestId("book-ar-qr")).toBeInTheDocument();
+    expect(screen.getByText("0%")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Оставить отзыв" })).toBeInTheDocument();
     expect(
       screen

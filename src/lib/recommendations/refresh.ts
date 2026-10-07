@@ -1,4 +1,5 @@
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 
 import { getRecommendationCandidates } from "@/lib/recommendations/candidates";
 import { buildFallbackRecommendationResult } from "@/lib/recommendations/fallback";
@@ -35,7 +36,7 @@ export async function enrichRecommendationSnapshot(
       provider: providerName,
       strategy: "ai-enriched",
       status: "ready",
-      result: enriched
+      result: { ...enriched, items: (await buildFallbackRecommendationsForContext(context)).items }
     });
 
     revalidatePath("/recommendations");
@@ -76,7 +77,13 @@ export async function refreshRecommendationSnapshotForUser(
   });
 
   revalidatePath("/recommendations");
-  void enrichRecommendationSnapshot(snapshot.id, context);
+  if (providerName !== "fallback") {
+    after(async () => { await enrichRecommendationSnapshot(snapshot.id, context); });
+  }
 
   return snapshot;
+}
+
+async function buildFallbackRecommendationsForContext(context: RecommendationContext) {
+  return buildFallbackRecommendationResult(context, await getRecommendationCandidates());
 }

@@ -15,8 +15,8 @@ export default async function EditAdminGenrePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireAdmin();
   const { id } = await params;
+  await requireAdmin(`/admin/genres/${id}/edit`);
 
   const genre = await db.genre.findUnique({
     where: { id }

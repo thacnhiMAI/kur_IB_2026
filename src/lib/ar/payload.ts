@@ -13,6 +13,11 @@ type ARPayloadInput = {
   coverImage: string | null;
   dominantColor: string | null;
   authors: string[];
+  year: number;
+  language: string;
+  pages: number;
+  publisher: string | null;
+  edition: string | null;
 };
 
 export function buildARBookPayload(input: ARPayloadInput): ARBookPayload {
@@ -23,6 +28,11 @@ export function buildARBookPayload(input: ARPayloadInput): ARBookPayload {
     description: input.description,
     coverImage: input.coverImage ?? DEFAULT_AR_COVER,
     dominantColor: input.dominantColor ?? DEFAULT_AR_COLOR,
-    authors: input.authors
+    authors: input.authors,
+    year: input.year,
+    language: input.language,
+    pages: input.pages,
+    publisher: input.publisher,
+    edition: input.edition
   };
 }

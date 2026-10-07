@@ -15,8 +15,8 @@ export default async function EditAdminAuthorPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireAdmin();
   const { id } = await params;
+  await requireAdmin(`/admin/authors/${id}/edit`);
 
   const author = await db.author.findUnique({
     where: { id }

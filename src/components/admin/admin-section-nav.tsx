@@ -1,27 +1,32 @@
 import React from "react";
 import Link from "next/link";
 
-type AdminSectionNavProps = {
-  current: "books" | "authors" | "genres";
-};
+type AdminSection = "books" | "authors" | "genres" | "users" | "reviews" | "import" | "audit";
 
-const items = [
-  { key: "books", href: "/admin/books", label: "Books" },
-  { key: "authors", href: "/admin/authors", label: "Authors" },
-  { key: "genres", href: "/admin/genres", label: "Genres" }
-] as const;
+type AdminSectionNavProps = { current: AdminSection };
+
+const items: Array<{ key: AdminSection; href: string; label: string }> = [
+  { key: "books", href: "/admin/books", label: "Книги" },
+  { key: "authors", href: "/admin/authors", label: "Авторы" },
+  { key: "genres", href: "/admin/genres", label: "Жанры" },
+  { key: "users", href: "/admin/users", label: "Пользователи" },
+  { key: "reviews", href: "/admin/reviews", label: "Отзывы" },
+  { key: "import", href: "/admin/import", label: "Импорт" },
+  { key: "audit", href: "/admin/audit", label: "Audit" }
+];
 
 export function AdminSectionNav({ current }: AdminSectionNavProps) {
   return (
-    <div className="flex flex-wrap gap-3">
+    <div className="editorial-subtle-surface flex flex-wrap gap-2 rounded-[22px] p-3">
       {items.map((item) => (
         <Link
           key={item.key}
           href={item.href}
-          className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+          aria-current={item.key === current ? "page" : undefined}
+          className={`rounded-full px-4 py-2.5 text-sm font-medium transition ${
             item.key === current
-              ? "bg-cyan-400 text-slate-950"
-              : "border border-slate-700 text-slate-200 hover:border-cyan-300 hover:text-cyan-200"
+              ? "concept-button-primary text-white"
+              : "editorial-button-secondary text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           }`}
         >
           {item.label}

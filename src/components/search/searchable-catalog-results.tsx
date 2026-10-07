@@ -1,11 +1,11 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import React from "react";
-import { useMemo, useState } from "react";
 
 import { BookCard } from "@/components/catalog/book-card";
-import { UnifiedSearch } from "@/components/search/unified-search";
-import { filterSearchItems } from "@/lib/search/filter";
+import type { CatalogPagination } from "@/lib/catalog/queries";
 
 type SearchableCatalogBook = {
   id: string;
@@ -19,46 +19,61 @@ type SearchableCatalogBook = {
   coverImage: string | null;
   blurDataUrl: string | null;
   dominantColor: string;
+  readingStatus: "not-started" | "in-progress" | "completed";
+  progressPercent: number;
+  readingMode: "internal" | "external" | "none";
+  readHref: string | null;
+  readLabel: "Читать" | "Открыть внешний источник" | null;
 };
 
-export function SearchableCatalogResults({
-  books
-}: {
+type SearchableCatalogResultsProps = {
   books: SearchableCatalogBook[];
-}) {
-  const [query, setQuery] = useState("");
+  pagination: CatalogPagination;
+  /** Backwards-compatible; search UI now lives in the unified catalog controls. */
+  initialQuery?: string;
+};
 
-  const filteredBooks = useMemo(() => {
-    const searchableBooks = books.map((book) => ({
-      ...book,
-      tags: book.genres,
-      reason: ""
-    }));
-    const matchingIds = new Set(
-      filterSearchItems(searchableBooks, query).map((book) => book.id)
-    );
+export function SearchableCatalogResults({ books, pagination }: SearchableCatalogResultsProps) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-    return books.filter((book) => matchingIds.has(book.id));
-  }, [books, query]);
+  function buildPageHref(cursor: string, direction: "next" | "prev") {
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set("cursor", cursor);
+    nextParams.set("direction", direction);
+    return `${pathname}?${nextParams.toString()}#catalog-results`;
+  }
 
   return (
     <div className="space-y-6">
-      <UnifiedSearch
-        label="Быстрый поиск"
-        placeholder="Поиск по названию, автору или жанру"
-        onQueryChange={setQuery}
-      />
-
-      {filteredBooks.length > 0 ? (
+      {books.length > 0 ? (
         <div className="premium-books-grid">
-          {filteredBooks.map((book) => (
-            <BookCard key={book.id} {...book} />
-          ))}
+          {books.map((book) => <BookCard key={book.id} {...book} />)}
         </div>
       ) : (
-        <div className="rounded-[28px] border border-dashed border-slate-700 bg-slate-900/60 p-10 text-center text-slate-300">
-          По локальному поиску книги не найдены.
+        <div className="rounded-[28px] border border-dashed border-[var(--surface-border-strong)] bg-[var(--surface-3)] p-10 text-center text-[var(--text-secondary)]">
+          По вашему запросу книги не найдены.
         </div>
+      )}
+
+      {(
+        <nav aria-label="Пагинация каталога" className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--surface-border)] pt-5">
+          <div>
+            {pagination.hasPreviousPage && pagination.previousCursor ? (
+              <Link href={buildPageHref(pagination.previousCursor, "prev")} className="editorial-button-secondary inline-flex rounded-full px-5 py-2.5 text-sm font-medium">
+                ← Предыдущая страница
+              </Link>
+            ) : null}
+          </div>
+          <p className="text-xs text-[var(--text-muted)]">{pagination.pageSize} книги / страница</p>
+          <div>
+            {pagination.hasNextPage && pagination.nextCursor ? (
+              <Link href={buildPageHref(pagination.nextCursor, "next")} className="editorial-button-secondary inline-flex rounded-full px-5 py-2.5 text-sm font-medium">
+                Следующая страница →
+              </Link>
+            ) : null}
+          </div>
+        </nav>
       )}
     </div>
   );

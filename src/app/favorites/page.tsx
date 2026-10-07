@@ -1,11 +1,12 @@
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { normalizeReadingProgress } from "@/lib/reading/progress";
 import { SearchableFavoritesList } from "@/components/search/searchable-favorites-list";
 
 export const dynamic = "force-dynamic";
 
 export default async function FavoritesPage() {
-  const user = await requireUser();
+  const user = await requireUser("/favorites");
 
   const favorites = await db.favorite.findMany({
     where: { userId: user.id },
@@ -15,6 +16,14 @@ export default async function FavoritesPage() {
           authors: {
             include: {
               author: true
+            }
+          },
+          contents: {
+            orderBy: [{ isPrimary: "desc" }, { updatedAt: "desc" }]
+          },
+          readingProgress: {
+            where: {
+              userId: user.id
             }
           }
         }
@@ -39,7 +48,20 @@ export default async function FavoritesPage() {
             subtitle: item.book.subtitle,
             authors: item.book.authors.map((entry) => entry.author.name),
             description: item.book.description,
-            year: item.book.year
+            year: item.book.year,
+            progressPercent: normalizeReadingProgress({
+              progressPercent: item.book.readingProgress[0]?.progressPercent ?? 0,
+              completedAt: item.book.readingProgress[0]?.completedAt ?? null
+            }).percent,
+            canRead: item.book.contents.some(
+              (content) => content.status === "READY"
+            ),
+            hasInternalFile: item.book.contents.some(
+              (content) =>
+                content.sourceType === "PDF" &&
+                content.status === "READY" &&
+                Boolean(content.storagePath)
+            )
           }))}
         />
       ) : (
