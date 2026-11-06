@@ -5,3 +5,7 @@ dist
 .trae
 .log
 .figma
+.venv
+.next
+test-results
+playwright-report

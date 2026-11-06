@@ -66,6 +66,7 @@ model User {
   uploadedBookContents    BookContent[]            @relation("UploadedBookContents")
   adminAuditLogs          AdminAuditLog[]           @relation("AdminAuditActor")
   notifications           Notification[]
+  pushSubscriptions       PushSubscription[]
   readerAnnotations       ReaderAnnotation[]
   avatarBlob              UserAvatar?
   readerAiConversations   ReaderAiConversation[]
@@ -105,9 +106,32 @@ model Book {
   readingHistory   ReadingHistory[]
   readingProgress  ReadingProgress[]
   recommendedIn    RecommendationItem[]
+  publicationPush  BookPublicationPush?
   contents         BookContent[]
   readerAnnotations ReaderAnnotation[]
   readerAiConversations ReaderAiConversation[]
+}
+
+model PushSubscription {
+  id        Int      @id @default(autoincrement())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model BookPublicationPush {
+  bookId       String   @id
+  book         Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  publishedAt  DateTime @default(now())
+  availableAt  DateTime @default(now())
+  lastDeviceId Int      @default(0)
+
+  @@index([availableAt])
 }
 
 model BookSourceRecord {

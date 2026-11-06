@@ -6,6 +6,9 @@ import { getCatalogPageData } from "@/lib/catalog/service";
 import { canAccessAdmin } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { parseBookPayload } from "@/lib/admin/book-input";
+import { schedulePublicationPushes } from "@/lib/pwa/push";
+
+export const maxDuration = 60;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -44,6 +47,7 @@ export async function POST(request: Request) {
       isbn: parsed.isbn || null,
       language: parsed.language,
       pages: parsed.pages,
+      isPublished: parsed.isPublished,
       authors: {
         create: parsed.authorIds.map((authorId) => ({ authorId }))
       },
@@ -57,5 +61,6 @@ export async function POST(request: Request) {
     bookSlugs: [book.slug]
   });
 
+  if (book.isPublished) schedulePublicationPushes();
   return NextResponse.json(book, { status: 201 });
 }

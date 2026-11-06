@@ -39,12 +39,14 @@ Deploy the Smart Library frontend and server runtime to Vercel while keeping Pos
 2. Prepare a PostgreSQL instance reachable from Vercel.
 3. Fill `DATABASE_URL` and `NEXTAUTH_URL` in `.env.production.local` with the real production values.
 4. Set `DATABASE_URL`, `AUTH_SECRET`, and `NEXTAUTH_URL` in the Vercel project settings.
-5. Add optional OAuth and AI variables only if those providers should be enabled in production.
+5. For the assessment deployment, set `AI_PROVIDER=openai`, `OPENAI_API_KEY`, `VAPID_SUBJECT`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `CRON_SECRET`. Configure Google OAuth and SMTP if those flows are part of the demo.
 6. Run `npx tsx scripts/phase-e/check-env.ts` in a shell that has the planned production env values exported.
 7. If Google OAuth is enabled, add `https://<your-domain>/api/auth/callback/google` as an authorized redirect URI.
 8. Run `npm run db:deploy` against the production database before the first public launch.
-9. Deploy the application on Vercel and confirm the public domain matches `NEXTAUTH_URL`.
-10. Redeploy after updating env values or Prisma schema.
+9. In Settings → Git, connect the GitHub repository and set the production branch to `main`. The Next.js build command in `vercel.json` generates Prisma Client before building. Confirm the public domain matches `NEXTAUTH_URL`.
+10. Verify that the next push to `main` creates a production deployment for that commit. For schema changes, apply migrations to the intended database before promoting the application that depends on them.
+11. Test a fresh push subscription and publish a test book. Vercel Cron retries queued events once per day using `CRON_SECRET`. Subscriptions must exist before publication.
+12. Re-run Lighthouse against the production HTTPS domain. Test camera AR on a supported device and push with the app tab closed.
 
 ## Notes
 

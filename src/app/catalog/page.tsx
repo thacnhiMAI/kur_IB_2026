@@ -1,6 +1,7 @@
 import React from "react";
 
 import { auth } from "@/auth";
+import { QRScanner } from "@/components/ar/qr-scanner";
 import { CatalogFilters } from "@/components/catalog/catalog-filters";
 import { FeaturedShelf } from "@/components/catalog/featured-shelf";
 import { RecentlyViewedBooks } from "@/components/catalog/recently-viewed-books";
@@ -86,6 +87,7 @@ export default async function CatalogPage({
       <FeaturedShelf books={shelfBooks} />
 
       <CatalogFilters filters={data.filters} params={catalogParams} />
+      <QRScanner />
 
       <section id="catalog-results" className="space-y-6">
         <div className="flex flex-col gap-3 border-b border-[var(--surface-border)] pb-5 sm:flex-row sm:items-end sm:justify-between">

@@ -6,12 +6,6 @@ import type { ARBookPayload } from "@/lib/ar/types";
 
 type WebXRFallbackReason = "camera-denied" | "renderer-init-failed";
 
-type XRSessionLike = {
-  addEventListener?: (type: "end", listener: () => void) => void;
-  removeEventListener?: (type: "end", listener: () => void) => void;
-  end?: () => Promise<void> | void;
-};
-
 export function ARPreviewWebXR({
   book,
   onFallback
@@ -19,7 +13,8 @@ export function ARPreviewWebXR({
   book: ARBookPayload;
   onFallback: (reason: WebXRFallbackReason) => void;
 }) {
-  const sessionRef = React.useRef<XRSessionLike | null>(null);
+  const sessionRef = React.useRef<XRSession | null>(null);
+  const mounted = React.useRef(false);
   const [isStarting, setIsStarting] = React.useState(false);
   const [status, setStatus] = React.useState(
     "Start an immersive AR session when your device camera is ready."
@@ -31,17 +26,19 @@ export function ARPreviewWebXR({
   }, []);
 
   React.useEffect(() => {
+    mounted.current = true;
     return () => {
+      mounted.current = false;
       const session = sessionRef.current;
 
       sessionRef.current = null;
       session?.removeEventListener?.("end", handleSessionEnd);
-      void session?.end?.();
+      void session?.end().catch(() => undefined);
     };
   }, [handleSessionEnd]);
 
   async function handleStart() {
-    if (isStarting) {
+    if (isStarting || sessionRef.current) {
       return;
     }
 
@@ -60,28 +57,29 @@ export function ARPreviewWebXR({
         return;
       }
 
-      const isSupported = await xr.isSessionSupported("immersive-ar");
-
-      if (!isSupported) {
-        setStatus("Immersive AR is unavailable right now. Opening the fallback preview.");
-        onFallback("renderer-init-failed");
-        return;
-      }
-
       setStatus(`Starting AR session for "${book.title}"...`);
 
-      const nextSession = (await xr.requestSession("immersive-ar")) as XRSessionLike;
-
-      sessionRef.current?.removeEventListener?.("end", handleSessionEnd);
-      void sessionRef.current?.end?.();
-
+      const nextSession = await xr.requestSession("immersive-ar");
+      if (!mounted.current) {
+        await nextSession.end();
+        return;
+      }
       sessionRef.current = nextSession;
-      nextSession?.addEventListener?.("end", handleSessionEnd);
+      nextSession.addEventListener("end", handleSessionEnd, { once: true });
+      const { attachBookScene } = await import("./webxr-scene");
+      if (sessionRef.current !== nextSession) return;
+      await attachBookScene(nextSession, book);
+      if (sessionRef.current !== nextSession) return;
 
       setStatus(`AR session is active for "${book.title}".`);
     } catch {
+      const failedSession = sessionRef.current;
+      sessionRef.current = null;
+      failedSession?.removeEventListener("end", handleSessionEnd);
+      void failedSession?.end().catch(() => undefined);
+      if (!mounted.current) return;
       setStatus("Camera or AR session startup failed. Opening the fallback preview.");
-      onFallback("camera-denied");
+      onFallback(failedSession ? "renderer-init-failed" : "camera-denied");
     } finally {
       setIsStarting(false);
     }

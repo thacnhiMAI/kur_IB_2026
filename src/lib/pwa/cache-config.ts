@@ -1,5 +1,5 @@
-export const APP_SHELL_CACHE = "smart-library-shell-v1";
-export const CONTENT_CACHE = "smart-library-content-v1";
+export const APP_SHELL_CACHE = "smart-library-shell-v2";
+export const CONTENT_CACHE = "smart-library-content-v2";
 export const OFFLINE_FALLBACK_PATH = "/catalog";
 
 export const APP_SHELL_ASSETS = [
@@ -10,11 +10,7 @@ export const APP_SHELL_ASSETS = [
   "/icons/icon-512.png"
 ] as const;
 
-const OFFLINE_NAVIGATION_PATHS = new Set([
-  "/catalog",
-  "/favorites",
-  "/recommendations"
-]);
+const OFFLINE_NAVIGATION_PATHS = new Set(["/catalog"]);
 
 const BLOCKED_PATH_PREFIXES = ["/admin", "/api", "/auth"] as const;
 

@@ -5,6 +5,9 @@ import { parseBookPayload } from "@/lib/admin/book-input";
 import { revalidatePublicCatalogPaths } from "@/lib/catalog/public-cache";
 import { db } from "@/lib/db";
 import { canAccessAdmin } from "@/lib/permissions";
+import { schedulePublicationPushes } from "@/lib/pwa/push";
+
+export const maxDuration = 60;
 
 async function ensureAdmin() {
   const session = await auth();
@@ -32,7 +35,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   });
   const existingBook = await db.book.findUnique({
     where: { id },
-    select: { slug: true }
+    select: { slug: true, isPublished: true }
   });
 
   const book = await db.book.update({
@@ -46,6 +49,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       isbn: parsed.isbn || null,
       language: parsed.language,
       pages: parsed.pages,
+      ...(body.isPublished !== undefined && { isPublished: parsed.isPublished }),
       authors: {
         deleteMany: {},
         create: parsed.authorIds.map((authorId) => ({ authorId }))
@@ -61,6 +65,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     bookSlugs: [existingBook?.slug, book.slug]
   });
 
+  if (book.isPublished && !existingBook?.isPublished) schedulePublicationPushes();
   return NextResponse.json(book);
 }
 

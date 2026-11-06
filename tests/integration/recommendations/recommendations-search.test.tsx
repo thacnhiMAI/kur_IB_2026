@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 
 import { SearchableRecommendationsGrid } from "@/components/search/searchable-recommendations-grid";
 
+vi.mock("@/app/recommendations/actions", () => ({ setRecommendationFavorite: vi.fn() }));
+
 describe("SearchableRecommendationsGrid", () => {
   it("filters recommendations by title, author, and reason", async () => {
     render(
@@ -11,6 +13,8 @@ describe("SearchableRecommendationsGrid", () => {
         items={[
           {
             id: "rec-1",
+            bookId: "book-1",
+            isFavorite: false,
             slug: "design-of-everyday-things",
             title: "Дизайн привычных вещей",
             authors: ["Дон Норман"],
@@ -19,6 +23,8 @@ describe("SearchableRecommendationsGrid", () => {
           },
           {
             id: "rec-2",
+            bookId: "book-2",
+            isFavorite: false,
             slug: "clean-code",
             title: "Clean Code",
             authors: ["Robert Martin"],

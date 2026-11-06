@@ -1,5 +1,5 @@
-const APP_SHELL_CACHE = "smart-library-shell-v1";
-const CONTENT_CACHE = "smart-library-content-v1";
+const APP_SHELL_CACHE = "smart-library-shell-v2";
+const CONTENT_CACHE = "smart-library-content-v2";
 const OFFLINE_FALLBACK_PATH = "/catalog";
 const APP_SHELL_ASSETS = [
   "/",
@@ -9,11 +9,7 @@ const APP_SHELL_ASSETS = [
   "/icons/icon-512.png"
 ];
 
-const OFFLINE_NAVIGATION_PATHS = new Set([
-  "/catalog",
-  "/favorites",
-  "/recommendations"
-]);
+const OFFLINE_NAVIGATION_PATHS = new Set(["/catalog"]);
 
 const BLOCKED_PATH_PREFIXES = ["/admin", "/api", "/auth"];
 
@@ -91,7 +87,9 @@ async function putInCache(cacheName, request, response) {
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(APP_SHELL_CACHE).then((cache) => cache.addAll(APP_SHELL_ASSETS))
+    caches.open(APP_SHELL_CACHE).then((cache) =>
+      cache.addAll(APP_SHELL_ASSETS.map((url) => new Request(url, { credentials: "omit" })))
+    )
   );
 });
 
@@ -102,6 +100,7 @@ self.addEventListener("activate", (event) => {
         cacheNames
           .filter(
             (cacheName) =>
+              cacheName.startsWith("smart-library-") &&
               cacheName !== APP_SHELL_CACHE && cacheName !== CONTENT_CACHE
           )
           .map((cacheName) => caches.delete(cacheName))
@@ -128,19 +127,25 @@ self.addEventListener("fetch", (event) => {
       fetch(request)
         .then((response) => {
           if (isCacheableDocumentResponse(response)) {
-            event.waitUntil(putInCache(CONTENT_CACHE, request, response));
+            // Shared browser caches must contain only public content.
+            event.waitUntil(fetch(request.url, { credentials: "omit" }).then((publicResponse) => {
+              if (isCacheableDocumentResponse(publicResponse)) {
+                return putInCache(CONTENT_CACHE, request.url, publicResponse);
+              }
+            }).catch(() => undefined));
           }
 
           return response;
         })
         .catch(async () => {
-          const cachedResponse = await caches.match(request);
+          const content = await caches.open(CONTENT_CACHE);
+          const cachedResponse = await content.match(request);
 
           if (cachedResponse) {
             return cachedResponse;
           }
 
-          const fallbackResponse = await caches.match(OFFLINE_FALLBACK_PATH);
+          const fallbackResponse = await content.match(OFFLINE_FALLBACK_PATH) ?? await caches.match(OFFLINE_FALLBACK_PATH);
 
           return fallbackResponse ?? Response.error();
         })
@@ -186,4 +191,28 @@ self.addEventListener("fetch", (event) => {
       })
     );
   }
+});
+
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  let data;
+  try { data = event.data.json(); } catch { return; }
+  if (typeof data.title !== "string" || typeof data.body !== "string" || typeof data.href !== "string") return;
+  event.waitUntil(self.registration.showNotification(data.title, {
+    body: data.body,
+    icon: "/icons/icon-192.png",
+    tag: data.tag,
+    data: { href: data.href }
+  }));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const href = event.notification.data?.href;
+  const target = typeof href === "string" && /^\/books\/[^/?#]+$/.test(href) ? href : "/catalog";
+  const url = new URL(target, self.location.origin).href;
+  event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+    const existing = clients.find((client) => client.url === url);
+    return existing ? existing.focus() : self.clients.openWindow(url);
+  }));
 });

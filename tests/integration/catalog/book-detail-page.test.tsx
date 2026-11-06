@@ -180,6 +180,7 @@ describe("getBookDetailPageData", () => {
         reviews: [
           {
             id: "review-1",
+            createdAt: new Date("2026-09-24T12:00:00Z"),
             rating: 5,
             content: "Очень полезная книга о проектировании.",
             user: {
@@ -205,7 +206,7 @@ describe("getBookDetailPageData", () => {
       "href",
       "/read/books/design-of-everyday-things"
     );
-    expect(screen.getByRole("heading", { name: "3D / AR Preview" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Открыть книгу в 3D / AR" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Открыть 3D / AR" })).toHaveAttribute(
       "href",
       "/ar/books/design-of-everyday-things"

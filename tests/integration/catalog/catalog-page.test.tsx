@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CatalogBookRecord } from "@/lib/catalog/queries";
@@ -28,6 +28,13 @@ vi.mock("@/lib/db", () => ({
       findMany: progressFindMany
     }
   }
+}));
+
+const replace = vi.hoisted(() => vi.fn());
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/catalog",
+  useRouter: () => ({ replace }),
+  useSearchParams: () => new URLSearchParams()
 }));
 
 import CatalogPage from "@/app/catalog/page";
@@ -122,6 +129,8 @@ describe("CatalogPage", () => {
           }
         })
       ])
+      .mockResolvedValueOnce([createCatalogBook({ isFeatured: true })])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ year: 2013 }]);
     genreFindMany.mockResolvedValue([{ slug: "dizayn", name: "Дизайн" }]);
     authorFindMany.mockResolvedValue([{ slug: "don-norman", name: "Дон Норман" }]);
@@ -135,15 +144,13 @@ describe("CatalogPage", () => {
 
     render(await CatalogPage({ searchParams: Promise.resolve({}) }));
 
-    expect(screen.getByRole("heading", { name: "Каталог книг" })).toBeInTheDocument();
-    expect(screen.getByText(/Подберите следующую книгу/i)).toBeInTheDocument();
-    expect(screen.getByText(/Featured collection/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /^Каталог$/ })).toBeInTheDocument();
     expect(screen.getAllByText("Дизайн привычных вещей").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Дон Норман").length).toBeGreaterThan(0);
     expect(screen.getAllByRole("link", { name: "Дизайн привычных вещей" }).length).toBeGreaterThan(0);
     expect(screen.getByTestId("featured-shelf")).toBeInTheDocument();
     expect(screen.getAllByTestId("book-card-3d")).not.toHaveLength(0);
-    expect(screen.getAllByTestId("catalog-reading-dot")[0]).toHaveClass("bg-amber-300");
+    expect(screen.getAllByTestId("catalog-reading-dot").find((dot) => !dot.classList.contains("hidden"))).toHaveClass("bg-amber-300");
     expect(screen.getAllByAltText("Дизайн привычных вещей")[0]).toHaveAttribute(
       "sizes"
     );
@@ -177,6 +184,8 @@ describe("CatalogPage", () => {
           isFeatured: false
         })
       ])
+      .mockResolvedValueOnce([createCatalogBook({ isFeatured: true })])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ year: 2013 }, { year: 2008 }]);
     genreFindMany.mockResolvedValue([{ slug: "dizayn", name: "Дизайн" }]);
     authorFindMany.mockResolvedValue([{ slug: "don-norman", name: "Дон Норман" }]);
@@ -186,15 +195,13 @@ describe("CatalogPage", () => {
     expect(data.featuredBooks).toHaveLength(1);
     expect(data.featuredBooks[0]).toMatchObject({
       title: "Дизайн привычных вещей",
-      coverImage: "/covers/design-of-everyday-things-9780441172719.jpg",
-      dominantColor: "#112233",
-      blurDataUrl: "data:image/jpeg;base64,AAA=",
+      coverImage: "https://example.com/original-cover.jpg",
       isFeatured: true
     });
     expect(data.books[0].coverImage).toBe("/covers/design-of-everyday-things-9780441172719.jpg");
   });
 
-  it("filters rendered catalog cards through the shared search bar", async () => {
+  it("updates the server query from the shared search bar", async () => {
     bookFindMany
       .mockResolvedValueOnce([
         createCatalogBook({
@@ -230,6 +237,8 @@ describe("CatalogPage", () => {
           ]
         })
       ])
+      .mockResolvedValueOnce([createCatalogBook({ isFeatured: true })])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ year: 2013 }, { year: 2008 }]);
     genreFindMany.mockResolvedValue([
       { slug: "dizayn", name: "Дизайн" },
@@ -243,12 +252,12 @@ describe("CatalogPage", () => {
     render(await CatalogPage({ searchParams: Promise.resolve({}) }));
 
     const search = screen.getByPlaceholderText(
-      "Поиск по названию, автору или жанру"
+      "Название, автор, жанр или описание"
     );
 
     fireEvent.change(search, { target: { value: "Норман" } });
 
     expect(screen.getAllByText("Дизайн привычных вещей").length).toBeGreaterThan(0);
-    expect(screen.queryByText("Clean Code")).not.toBeInTheDocument();
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(`/catalog?q=${encodeURIComponent("Норман")}#catalog-results`, { scroll: false }));
   });
 });

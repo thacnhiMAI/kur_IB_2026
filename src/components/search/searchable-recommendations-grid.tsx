@@ -4,6 +4,8 @@ import React, { useState } from "react";
 import Link from "next/link";
 
 import { RecommendationCard } from "@/components/recommendations/recommendation-card";
+import { UnifiedSearch } from "@/components/search/unified-search";
+import { filterSearchItems } from "@/lib/search/filter";
 
 type SearchableRecommendationItem = {
   id: string;
@@ -24,20 +26,28 @@ type SearchableRecommendationItem = {
 
 export function SearchableRecommendationsGrid({ items }: { items: SearchableRecommendationItem[] }) {
   const [visible, setVisible] = useState(25);
+  const [query, setQuery] = useState("");
+  const matches = filterSearchItems(items.map((item) => ({ ...item, subtitle: item.subtitle ?? null, tags: [] })), query);
   return (
     <section className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2 className="font-display text-3xl text-[var(--text-primary)]">Для вас</h2>
-          <p className="mt-1 text-sm text-[var(--text-secondary)]">{items.length} подходящих книг · рейтинг от высокого к низкому</p>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">{matches.length} подходящих книг</p>
         </div>
         <Link href="/catalog" className="inline-flex items-center gap-2 text-sm font-medium text-[var(--accent-text)] hover:underline">
           Смотреть все <span aria-hidden="true">→</span>
         </Link>
       </div>
 
+      <UnifiedSearch
+        label="Поиск в подборке"
+        placeholder="Поиск по названию, автору или причине рекомендации"
+        onQueryChange={(value) => { setQuery(value); setVisible(25); }}
+      />
+      {!matches.length && <p role="status">В подборке нет книг по этому запросу.</p>}
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
-        {items.slice(0, visible).map((item) => (
+        {matches.slice(0, visible).map((item) => (
           <div key={item.id} className="flex min-w-0 flex-col gap-2">
           <p className="shrink-0 text-sm font-semibold text-[var(--accent-text)]">★ {item.ratingAverage?.toFixed(2) ?? "Нет оценок"}</p>
           <RecommendationCard
@@ -57,7 +67,7 @@ export function SearchableRecommendationsGrid({ items }: { items: SearchableReco
           </div>
         ))}
       </div>
-      {visible < items.length && <button type="button" onClick={() => setVisible((count) => Math.min(count + 25, items.length))} className="concept-button-primary rounded-xl px-5 py-3">{items.length - visible < 25 ? `Показать ещё ${items.length - visible}` : `Показать ещё 25 · осталось ${items.length - visible}`}</button>}
+      {visible < matches.length && <button type="button" onClick={() => setVisible((count) => count + 25)} className="concept-button-primary rounded-xl px-5 py-3">Показать ещё {Math.min(25, matches.length - visible)}</button>}
     </section>
   );
 }

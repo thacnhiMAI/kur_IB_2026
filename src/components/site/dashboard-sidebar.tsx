@@ -27,9 +27,9 @@ const baseItems = [
   { href: "/profile", label: "Профиль", icon: UserRound }
 ] as const;
 
-function isActive(pathname: string, href: string) {
+function isActive(pathname: string | null, href: string) {
   if (href === "/") return pathname === "/";
-  return pathname === href || pathname.startsWith(`${href}/`);
+  return pathname === href || pathname?.startsWith(`${href}/`);
 }
 
 export function DashboardSidebar() {

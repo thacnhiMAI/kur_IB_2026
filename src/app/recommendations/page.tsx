@@ -2,6 +2,8 @@ import React from "react";
 import { RecommendationRefreshButton } from "@/components/recommendations/recommendation-refresh-button";
 
 import { RecommendationHero } from "@/components/recommendations/recommendation-hero";
+import { RecommendationInsightStrip } from "@/components/recommendations/recommendation-insight-strip";
+import { RecommendationSource } from "@/components/recommendations/recommendation-source";
 import { SearchableRecommendationsGrid } from "@/components/search/searchable-recommendations-grid";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
@@ -10,6 +12,7 @@ import {
   getLatestRecommendationSnapshot
 } from "@/lib/recommendations/service";
 import { buildPageMetadata } from "@/lib/site/metadata";
+import { recommendationInsightsSchema } from "@/lib/recommendations/response-schema";
 
 export const dynamic = "force-dynamic";
 export const metadata = buildPageMetadata({
@@ -34,6 +37,7 @@ export default async function RecommendationsPage() {
     db.favorite.findMany({ where: { userId }, select: { bookId: true } })
   ]);
   const favoriteBookIds = new Set(favorites.map((favorite) => favorite.bookId));
+  const insights = recommendationInsightsSchema.safeParse(snapshot?.insights);
 
   return (
     <section className="space-y-9">
@@ -49,11 +53,12 @@ export default async function RecommendationsPage() {
       </RecommendationHero>
 
       {snapshot && (
-        <p role="status" className="text-sm text-[var(--text-secondary)]">
-          Обновлено: {snapshot.createdAt.toLocaleString("ru-RU", { timeZone: "Europe/Moscow" })} · {snapshot.items.length} книг.
-          Повторное обновление без новых действий может сохранить прежнюю подборку.
-        </p>
+        <div className="space-y-1 text-sm text-[var(--text-secondary)]">
+          <p>Обновлено: {snapshot.createdAt.toLocaleString("ru-RU", { timeZone: "Europe/Moscow" })} · {snapshot.items.length} книг.</p>
+          <RecommendationSource provider={snapshot.provider} status={snapshot.status} strategy={snapshot.strategy} />
+        </div>
       )}
+      {insights.success && <RecommendationInsightStrip insights={insights.data} />}
       {snapshot?.items.length ? (
         <SearchableRecommendationsGrid
           items={snapshot.items.map((item) => ({

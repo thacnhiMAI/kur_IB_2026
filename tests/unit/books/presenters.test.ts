@@ -13,6 +13,7 @@ describe("book presenters", () => {
       year: 2013,
       coverImage: null,
       isFeatured: true,
+      contents: [],
       authors: [{ author: { name: "Дон Норман", slug: "don-norman" } }],
       genres: [{ genre: { name: "Дизайн", slug: "design" } }],
       coverAssets: [

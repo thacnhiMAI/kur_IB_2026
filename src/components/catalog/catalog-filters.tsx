@@ -42,7 +42,7 @@ export function CatalogFilters({ filters, params }: CatalogFiltersProps) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
     debounceRef.current = setTimeout(() => {
-      const nextParams = new URLSearchParams(searchParams.toString());
+      const nextParams = new URLSearchParams(searchParams?.toString());
       const normalized = nextQuery.trim();
 
       if (normalized) nextParams.set("q", normalized);
@@ -55,7 +55,7 @@ export function CatalogFilters({ filters, params }: CatalogFiltersProps) {
   function applyFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const nextParams = new URLSearchParams(searchParams.toString());
+    const nextParams = new URLSearchParams(searchParams?.toString());
     const currentQuery = latestQueryRef.current.trim();
     if (currentQuery) nextParams.set("q", currentQuery);
     else nextParams.delete("q");

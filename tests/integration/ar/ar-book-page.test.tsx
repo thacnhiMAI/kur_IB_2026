@@ -9,12 +9,16 @@ const { getBookDetailPageData } = vi.hoisted(() => ({
 const { decideARPreviewMode } = vi.hoisted(() => ({
   decideARPreviewMode: vi.fn()
 }));
+const attachBookScene = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock("@/components/ar/webxr-scene", () => ({ attachBookScene }));
 
 const { notFound } = vi.hoisted(() => ({
   notFound: vi.fn(() => {
     throw new Error("NEXT_NOT_FOUND");
   })
 }));
+
+vi.mock("@/auth", () => ({ auth: vi.fn().mockResolvedValue(null) }));
 
 vi.mock("@/lib/catalog/service", () => ({
   getBookDetailPageData
@@ -120,7 +124,8 @@ describe("ARBookPage", () => {
       "/read/books/design-of-everyday-things"
     );
     expect(screen.getByText("AR Preview")).toBeInTheDocument();
-    expect(screen.getAllByText("Дизайн привычных вещей")).toHaveLength(2);
+    expect(screen.getAllByRole("heading", { name: "Дизайн привычных вещей" })).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Проверить 2D" }));
     expect(screen.getByTestId("ar-preview-2d")).toBeInTheDocument();
   });
 
@@ -142,7 +147,7 @@ describe("ARBookPage", () => {
     await waitFor(() => {
       expect(decideARPreviewMode).toHaveBeenCalled();
     });
-    expect(await screen.findByText("3D Reader Lite")).toBeInTheDocument();
+    expect(await screen.findByText("3D Book Preview")).toBeInTheDocument();
     expect(screen.getByTestId("ar-preview-3d")).toBeInTheDocument();
     expect(screen.getByTestId("ar-reader-lite")).toBeInTheDocument();
     expect(
@@ -173,6 +178,30 @@ describe("ARBookPage", () => {
     expect(screen.getByText("AR Preview")).toBeInTheDocument();
     expect(screen.getByTestId("ar-preview-webxr")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Start AR" })).toBeInTheDocument();
+  });
+
+  it("attaches the book and description to an immersive session", async () => {
+    decideARPreviewMode.mockResolvedValue({ mode: "webxr", reason: null, renderer: "book-solid" });
+    const session = new EventTarget();
+    const end = vi.fn().mockResolvedValue(undefined);
+    const requestSession = vi.fn().mockResolvedValue(Object.assign(session, { end }));
+    Object.defineProperty(navigator, "xr", {
+      configurable: true,
+      value: { requestSession, isSessionSupported: vi.fn().mockResolvedValue(true) }
+    });
+    getBookDetailPageData.mockResolvedValue(BOOK_DETAIL_FIXTURE);
+    const { unmount } = render(await ARBookPage({
+      params: Promise.resolve({ slug: BOOK_DETAIL_FIXTURE.slug })
+    }));
+    fireEvent.click(await screen.findByRole("button", { name: "Start AR" }));
+    await waitFor(() => expect(attachBookScene).toHaveBeenCalledWith(session, expect.objectContaining({
+      coverImage: BOOK_DETAIL_FIXTURE.coverImage,
+      description: BOOK_DETAIL_FIXTURE.description
+    })));
+    expect(requestSession).toHaveBeenCalledWith("immersive-ar");
+    await screen.findByText(/AR session is active/);
+    unmount();
+    expect(end).toHaveBeenCalledOnce();
   });
 
   it("falls back to the 3d preview when webxr session startup fails", async () => {

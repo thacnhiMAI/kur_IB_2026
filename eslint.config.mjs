@@ -14,13 +14,18 @@ const config = [
     ignores: [
       ".next/**",
       "node_modules/**",
+      ".venv/**",
       "coverage/**",
       "playwright-report/**",
       "test-results/**",
       "next-env.d.ts"
     ]
   },
-  ...compat.extends("next/core-web-vitals", "next/typescript")
+  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  {
+    files: ["scripts/**/*.cjs"],
+    rules: { "@typescript-eslint/no-require-imports": "off" }
+  }
 ];
 
 export default config;

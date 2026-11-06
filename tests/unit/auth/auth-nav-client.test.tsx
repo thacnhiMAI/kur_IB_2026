@@ -19,18 +19,18 @@ describe("AuthNavClient", () => {
     vi.clearAllMocks();
   });
 
-  it("renders signed-out links before session hydration", () => {
+  it("renders signed-out links before session hydration", async () => {
     getSession.mockResolvedValue(null);
 
     render(<AuthNavClient />);
 
-    expect(screen.getByRole("link", { name: "Регистрация через Google" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Регистрация" })).toBeInTheDocument();
   });
 
   it("hydrates to the signed-in nav when a session exists", async () => {
     getSession.mockResolvedValue({
       user: {
-        name: "Reader",
+        name: "Профиль",
         email: "reader@example.com",
         role: "USER"
       }
@@ -39,7 +39,7 @@ describe("AuthNavClient", () => {
     render(<AuthNavClient />);
 
     await waitFor(() => {
-      expect(screen.getByRole("link", { name: "Reader" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Профиль" })).toBeInTheDocument();
     });
   });
 });

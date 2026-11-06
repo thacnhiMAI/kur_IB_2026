@@ -10,9 +10,7 @@ test("catalog shows premium shelf layout", async ({ page }) => {
     await page.goto(catalogUrl);
   }
 
-  await expect(page.getByRole("heading", { name: "Каталог книг" })).toBeVisible();
-  await expect(page.getByText("Подберите следующую книгу")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Каталог", exact: true })).toBeVisible();
   await expect(page.getByTestId("featured-shelf")).toBeVisible();
   await expect(page.getByTestId("book-card-3d").first()).toBeVisible();
-  await expect(page.getByRole("link", { name: "Открыть карточку" }).first()).toBeVisible();
 });

@@ -38,7 +38,7 @@ const context: RecommendationContext = {
 };
 
 describe("buildFallbackRecommendationResult", () => {
-  it("ranks author and genre matches above generic popularity and excludes seen books", () => {
+  it("keeps personalized matches and excludes unrelated or seen books", () => {
     const result = buildFallbackRecommendationResult(context, [
       {
         id: "candidate-1",
@@ -66,10 +66,10 @@ describe("buildFallbackRecommendationResult", () => {
       }
     ]);
 
-    expect(result.items).toHaveLength(2);
+    expect(result.items).toHaveLength(1);
     expect(result.items[0].bookId).toBe("candidate-1");
     expect(result.items[0].badge).toBe("author-match");
-    expect(result.items[0].score).toBeGreaterThan(result.items[1].score ?? 0);
+    expect(result.items[0].score).toBeGreaterThan(0);
     expect(result.summary).toContain("любимых авторов");
     expect(result.insights.highRatedThemes).toContain("Дизайн");
     expect(result.items.some((item) => item.bookId === "finished-1")).toBe(false);

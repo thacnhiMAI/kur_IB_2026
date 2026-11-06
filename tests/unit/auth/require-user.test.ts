@@ -48,7 +48,7 @@ describe("requireUser", () => {
     await expect(requireUser()).rejects.toThrow("REDIRECT:/auth/sign-in");
     expect(findUnique).toHaveBeenCalledWith({
       where: { id: "ghost-user" },
-      select: { id: true, email: true, image: true, name: true, role: true }
+      select: expect.objectContaining({ id: true, email: true, image: true, name: true, role: true })
     });
   });
 

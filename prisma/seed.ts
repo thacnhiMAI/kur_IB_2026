@@ -58,6 +58,17 @@ const fallbackImportedBooks: NormalizedImportedBook[] = [
     publisher: "Bantam Spectra",
     provider: "open-library",
     externalId: "OL-game-of-thrones"
+  },
+  {
+    title: "Emotional Design",
+    description: "How the design of everyday objects influences feelings and behavior.",
+    authors: ["Don Norman"],
+    genres: ["Design"],
+    year: 2004,
+    language: "en",
+    pages: 272,
+    provider: "open-library",
+    externalId: "OL-emotional-design"
   }
 ];
 
@@ -66,18 +77,26 @@ const localizedDemoBooks = [
     slug: "design-of-everyday-things",
     title: "Дизайн привычных вещей",
     description: "Классическая книга о проектировании, UX и понятных интерфейсах.",
+    coverImage: "/covers/the-psychology-of-everyday-things-9780465072996.jpg",
     language: "ru"
   },
   {
     slug: "foundation",
     title: "Основание",
     description: "Классика научной фантастики о будущем цивилизации и прогнозировании.",
+    coverImage: "/covers/foundation-9780007270422.jpg",
     language: "ru"
   },
   {
     slug: "game-of-thrones",
     title: "Игра престолов",
     description: "Эпическое фэнтези о власти, семье и борьбе за Железный трон.",
+    language: "ru"
+  },
+  {
+    slug: "emotional-design",
+    title: "Эмоциональный дизайн",
+    description: "Дон Норман объясняет, как дизайн повседневных вещей влияет на чувства и поведение.",
     language: "ru"
   }
 ] as const;
@@ -134,6 +153,7 @@ async function ensureDemoUsers() {
 }
 
 async function bootstrapRealCatalogIfEmpty() {
+  if (process.env.SEED_OFFLINE === "1") return false;
   const bookCount = await prisma.book.count();
 
   if (bookCount > 0) {
@@ -177,7 +197,7 @@ async function ensureDemoCatalogSlugs({ localizeExisting }: { localizeExisting: 
     if (createdNow || localizeExisting) {
       const book = await prisma.book.findUnique({
         where: { slug: localizedBook.slug },
-        select: { id: true }
+        select: { id: true, coverImage: true }
       });
 
       if (book) {
@@ -186,7 +206,8 @@ async function ensureDemoCatalogSlugs({ localizeExisting }: { localizeExisting: 
           data: {
             title: localizedBook.title,
             description: localizedBook.description,
-            language: localizedBook.language
+            language: localizedBook.language,
+            ...(!book.coverImage && "coverImage" in localizedBook && { coverImage: localizedBook.coverImage })
           }
         });
       }

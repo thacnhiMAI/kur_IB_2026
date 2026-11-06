@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { PageFlip } from "page-flip";
+import { PageFlip, type SizeType } from "page-flip";
 import { pdfjs } from "react-pdf";
 
 import { ReaderAiPanel } from "@/components/reader/reader-ai-panel";
@@ -650,7 +650,7 @@ export default function PdfFlipReader({
 
         // 100% means "fit the complete page/spread inside the visible reader",
         // not a 700px-wide physical page that can extend below the viewport.
-        const stage = mount.closest<HTMLElement>(".pdf3d-stage");
+        const stage = mountRef.current?.closest<HTMLElement>(".pdf3d-stage");
         const stageRect = stage?.getBoundingClientRect();
         const availableWidth = Math.max(300, (stage?.clientWidth ?? window.innerWidth) - 32);
         const availableHeight = Math.max(320, (stage?.clientHeight ?? (window.innerHeight - (stageRect?.top ?? 140) - 24)) - 28);
@@ -683,7 +683,7 @@ export default function PdfFlipReader({
         const instance = new PageFlip(host, {
           width: fittedWidth,
           height: fittedHeight,
-          size: "stretch",
+          size: "stretch" as SizeType,
           minWidth: Math.min(240, fittedWidth),
           maxWidth: fittedWidth,
           minHeight: Math.min(Math.round((240 / fittedWidth) * fittedHeight), fittedHeight),

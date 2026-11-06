@@ -10,10 +10,10 @@ import {
 } from "@/lib/pwa/cache-config";
 
 describe("pwa cache config", () => {
-  it("marks catalog, favorites, recommendations, and book detail as offline-supported routes", () => {
+  it("supports public catalog and book detail offline while excluding private pages", () => {
     expect(isOfflineSupportedNavigation("/catalog")).toBe(true);
-    expect(isOfflineSupportedNavigation("/favorites")).toBe(true);
-    expect(isOfflineSupportedNavigation("/recommendations")).toBe(true);
+    expect(isOfflineSupportedNavigation("/favorites")).toBe(false);
+    expect(isOfflineSupportedNavigation("/recommendations")).toBe(false);
     expect(
       isOfflineSupportedNavigation("/books/design-of-everyday-things")
     ).toBe(true);
@@ -29,8 +29,8 @@ describe("pwa cache config", () => {
   });
 
   it("exports stable cache names", () => {
-    expect(APP_SHELL_CACHE).toBe("smart-library-shell-v1");
-    expect(CONTENT_CACHE).toBe("smart-library-content-v1");
+    expect(APP_SHELL_CACHE).toBe("smart-library-shell-v2");
+    expect(CONTENT_CACHE).toBe("smart-library-content-v2");
   });
 
   it("caches only safe offline navigation requests", () => {

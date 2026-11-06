@@ -1,0 +1,64 @@
+name: Verify
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: smart_library_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d smart_library_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/smart_library_test
+      AUTH_SECRET: test-only-auth-secret-for-ci-not-for-production
+      NEXTAUTH_URL: http://127.0.0.1:3000
+      AR_PUBLIC_BASE_URL: http://127.0.0.1:3000
+      AI_PROVIDER: fallback
+      SEED_OFFLINE: "1"
+      PLAYWRIGHT_PRODUCTION: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run db:generate
+      - run: npm run db:deploy
+      - run: npm run db:seed
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e -- --workers=2
+      - name: Enforce the Lighthouse performance threshold
+        shell: bash
+        run: |
+          npm run start -- --hostname 127.0.0.1 --port 3000 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          curl --fail --silent --retry 15 --retry-connrefused --retry-delay 1 http://127.0.0.1:3000/ >/dev/null
+          export CHROME_PATH="$(node -p 'require("playwright").chromium.executablePath()')"
+          for route in / /catalog /books/design-of-everyday-things; do
+            npx --yes lighthouse@13.6.0 "http://127.0.0.1:3000$route" \
+              --only-categories=performance --output=json --output-path=./test-results/lighthouse.json \
+              --chrome-flags="--headless=new --no-sandbox" --quiet
+            node -e 'const score=require("./test-results/lighthouse.json").categories.performance.score; console.log(process.argv[1], score * 100); if (!(score > 0.85)) process.exit(1)' "$route"
+          done

@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireUser, recordReadingEvent, upsertReview, refreshRecommendationSnapshotForUser, revalidatePath } =
+const { requireUser, recordReadingEvent, createReview, refreshRecommendationSnapshotForUser, revalidatePath } =
   vi.hoisted(() => ({
     requireUser: vi.fn(),
     recordReadingEvent: vi.fn(),
-    upsertReview: vi.fn(),
+    createReview: vi.fn(),
     refreshRecommendationSnapshotForUser: vi.fn(),
     revalidatePath: vi.fn()
   }));
@@ -37,7 +37,7 @@ vi.mock("@/lib/reading-history/actions", async () => {
 });
 
 vi.mock("@/lib/reviews/actions", () => ({
-  upsertReview
+  createReview
 }));
 
 vi.mock("@/lib/recommendations/refresh", () => ({
@@ -67,7 +67,7 @@ describe("book signal actions", () => {
       role: "USER"
     });
     recordReadingEvent.mockResolvedValue({ id: "history-1" });
-    upsertReview.mockResolvedValue({ id: "review-1" });
+    createReview.mockResolvedValue({ id: "review-1" });
     refreshRecommendationSnapshotForUser.mockResolvedValue({ id: "snapshot-1" });
   });
 
@@ -112,14 +112,14 @@ describe("book signal actions", () => {
 
     await submitBookReview(formData);
 
-    expect(upsertReview).toHaveBeenCalledWith({
+    expect(createReview).toHaveBeenCalledWith({
       bookId: "book-1",
       rating: 5,
       content: "Strong follow-up for UX readers.",
       redirectSlug: "design-of-everyday-things"
     });
     expect(refreshRecommendationSnapshotForUser).toHaveBeenCalledWith("user-1", "review");
-    expect(upsertReview.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(createReview.mock.invocationCallOrder[0]).toBeLessThan(
       refreshRecommendationSnapshotForUser.mock.invocationCallOrder[0]
     );
     expect(revalidatePath).toHaveBeenCalledWith("/recommendations");

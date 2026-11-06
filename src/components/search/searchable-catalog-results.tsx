@@ -38,7 +38,7 @@ export function SearchableCatalogResults({ books, pagination }: SearchableCatalo
   const searchParams = useSearchParams();
 
   function buildPageHref(cursor: string, direction: "next" | "prev") {
-    const nextParams = new URLSearchParams(searchParams.toString());
+    const nextParams = new URLSearchParams(searchParams?.toString());
     nextParams.set("cursor", cursor);
     nextParams.set("direction", direction);
     return `${pathname}?${nextParams.toString()}#catalog-results`;

@@ -15,9 +15,8 @@ vi.mock("@/auth", () => ({
 
 vi.mock("@/lib/db", () => ({
   db: {
-    book: {
-      findFirst
-    }
+    book: { findFirst },
+    readingProgress: { findUnique: vi.fn().mockResolvedValue(null) }
   }
 }));
 
@@ -42,6 +41,8 @@ vi.mock("@/components/reader/external-reader-shell", () => ({
     </div>
   )
 }));
+
+vi.mock("@/lib/auth", () => ({ requireUser: vi.fn().mockResolvedValue({ id: "user-1" }) }));
 
 import ReadBookPage from "@/app/read/books/[slug]/page";
 
@@ -69,7 +70,7 @@ describe("ReadBookPage", () => {
     render(await ReadBookPage({ params: Promise.resolve({ slug: "babel" }) }));
 
     expect(screen.getByTestId("pdf-reader-shell")).toBeInTheDocument();
-    expect(screen.getByTestId("pdf-reader-shell")).toHaveTextContent("/reading/babel.pdf");
+    expect(screen.getByTestId("pdf-reader-shell")).toHaveTextContent("/api/reading/content/pdf-1");
   });
 
   it("falls back to the external reader shell when only an external source exists", async () => {

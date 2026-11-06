@@ -16,9 +16,7 @@ describe("voice search", () => {
   it("detects prefixed speech recognition support", () => {
     expect(
       getVoiceSearchSupport({
-        webkitSpeechRecognition: function WebkitSpeechRecognition() {
-          return undefined;
-        }
+        webkitSpeechRecognition: vi.fn()
       })
     ).toEqual({
       status: "supported"

@@ -1,7 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 
-import { getRecommendationCandidates } from "@/lib/recommendations/candidates";
+import { getRecommendationCandidates, type RecommendationCandidate } from "@/lib/recommendations/candidates";
 import { buildFallbackRecommendationResult } from "@/lib/recommendations/fallback";
 import { getProvider, getProviderName } from "@/lib/recommendations/service";
 import {
@@ -21,7 +21,8 @@ export type RecommendationRefreshTrigger =
 
 export async function enrichRecommendationSnapshot(
   snapshotId: string,
-  context: RecommendationContext
+  context: RecommendationContext,
+  candidates: RecommendationCandidate[]
 ) {
   const providerName = getProviderName();
 
@@ -31,12 +32,26 @@ export async function enrichRecommendationSnapshot(
 
   try {
     const provider = getProvider();
-    const enriched = await provider.getRecommendations(context);
+    const excluded = new Set(context.excludedBookIds);
+    const candidateById = new Map(candidates.filter((book) => !excluded.has(book.id)).map((book) => [book.id, book]));
+    const ordered = buildFallbackRecommendationResult(context, candidates).items
+      .map((item) => candidateById.get(item.bookId))
+      .filter((book) => book !== undefined);
+    const shortlist = [...new Map([...ordered, ...candidateById.values()].map((book) => [book.id, book])).values()]
+      .slice(0, 40)
+      .map(({ id, title, description, authors, genres }) => ({
+        bookId: id, title, description: description?.slice(0, 360), authors, genres
+      }));
+    if (!shortlist.length) throw new Error("No recommendation candidates");
+    const enriched = await provider.getRecommendations(context, shortlist);
+    const available = new Set(shortlist.map((book) => book.bookId));
+    const items = enriched.items.filter((item) => available.delete(item.bookId)).slice(0, 12);
+    if (!items.length) throw new Error("No valid recommendations returned");
     const snapshot = await updateRecommendationSnapshot(snapshotId, {
       provider: providerName,
       strategy: "ai-enriched",
       status: "ready",
-      result: { ...enriched, items: (await buildFallbackRecommendationsForContext(context)).items }
+      result: { ...enriched, items }
     });
 
     revalidatePath("/recommendations");
@@ -78,12 +93,8 @@ export async function refreshRecommendationSnapshotForUser(
 
   revalidatePath("/recommendations");
   if (providerName !== "fallback") {
-    after(async () => { await enrichRecommendationSnapshot(snapshot.id, context); });
+    after(async () => { await enrichRecommendationSnapshot(snapshot.id, context, candidates); });
   }
 
   return snapshot;
-}
-
-async function buildFallbackRecommendationsForContext(context: RecommendationContext) {
-  return buildFallbackRecommendationResult(context, await getRecommendationCandidates());
 }

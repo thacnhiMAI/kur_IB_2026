@@ -24,20 +24,27 @@ vi.mock("@/lib/recommendations/service", () => ({
 
 import RecommendationsPage from "@/app/recommendations/page";
 
-function findElementByType(node: ReactNode, type: string): ReactElement | null {
+vi.mock("@/lib/db", () => ({ db: { favorite: { findMany: vi.fn().mockResolvedValue([]) } } }));
+vi.mock("@/app/recommendations/actions", () => ({ setRecommendationFavorite: vi.fn() }));
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+
+type ElementProps = { children?: ReactNode; action?: () => Promise<void> };
+
+function findElementByType(node: ReactNode, type: string): ReactElement<ElementProps> | null {
   if (!node || typeof node !== "object") {
     return null;
   }
 
   if ("type" in node && node.type === type) {
-    return node as ReactElement;
+    return node as ReactElement<ElementProps>;
   }
 
   if (!("props" in node)) {
     return null;
   }
 
-  const children = node.props?.children;
+  const children = (node as ReactElement<ElementProps>).props.children;
 
   if (Array.isArray(children)) {
     for (const child of children) {
@@ -124,7 +131,7 @@ describe("RecommendationsPage", () => {
     const refreshForm = findElementByType(page, "form");
 
     expect(refreshForm).not.toBeNull();
-    await refreshForm?.props.action();
+    await refreshForm?.props.action?.();
     expect(generateRecommendationsForUser).toHaveBeenCalledWith("user-1");
   });
 
@@ -135,7 +142,7 @@ describe("RecommendationsPage", () => {
 
     render(page);
 
-    expect(screen.getAllByText("Нет данных")).toHaveLength(4);
+    expect(screen.queryByTestId("recommendation-card")).not.toBeInTheDocument();
     expect(getLatestRecommendationSnapshot).toHaveBeenCalledWith("user-1");
     expect(
       screen.getByText("Нажмите кнопку выше, чтобы получить первую персональную подборку.")

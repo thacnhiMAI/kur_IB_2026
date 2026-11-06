@@ -9,10 +9,12 @@ import { requireAdmin } from "@/lib/auth";
 import { canonicalBookSlug } from "@/lib/books/slug";
 import { revalidatePublicCatalogPaths } from "@/lib/catalog/public-cache";
 import { db } from "@/lib/db";
+import { schedulePublicationPushes } from "@/lib/pwa/push";
 import { bookContentInputSchema } from "@/lib/reading/content-input";
 import { syncBookContentSources } from "@/lib/reading/content-management";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export default async function EditAdminBookPage({
   params
@@ -134,6 +136,7 @@ export default async function EditAdminBookPage({
       bookSlugs: [currentSlug, updatedBook.slug]
     });
 
+    if (updatedBook.isPublished) schedulePublicationPushes();
     redirect("/admin/books");
   }
 

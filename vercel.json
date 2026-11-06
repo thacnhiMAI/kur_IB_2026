@@ -1,1 +1,5 @@
-{"rewrites":[{"source":"/(.*)","destination":"/index.html"}]}
+{
+  "framework": "nextjs",
+  "buildCommand": "npm run db:generate && npm run build",
+  "crons": [{ "path": "/api/cron/publication-push", "schedule": "15 6 * * *" }]
+}

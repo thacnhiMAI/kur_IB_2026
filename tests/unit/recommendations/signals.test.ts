@@ -10,7 +10,8 @@ vi.mock("@/lib/db", () => ({
   db: {
     favorite: { findMany: favoriteFindMany },
     readingHistory: { findMany: historyFindMany },
-    review: { findMany: reviewFindMany }
+    review: { findMany: reviewFindMany },
+    readingProgress: { findMany: vi.fn().mockResolvedValue([]) }
   }
 }));
 
@@ -36,6 +37,7 @@ describe("buildRecommendationContext", () => {
       {
         bookId: "book-finished",
         eventType: "FINISHED",
+        createdAt: new Date("2026-09-24T12:00:00Z"),
         book: {
           title: "Основание",
           genres: [{ genre: { name: "Научная фантастика" } }],
@@ -71,13 +73,15 @@ describe("buildRecommendationContext", () => {
     );
     expect(reviewFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { userId: "user-1", status: "PUBLISHED" }
+        where: { userId: "user-1", status: { in: ["PUBLISHED", "PENDING"] } }
       })
     );
     expect(context.favoriteBooks).toEqual([
       {
         bookId: "book-fav",
-        title: "Дизайн привычных вещей"
+        title: "Дизайн привычных вещей",
+        genres: ["Дизайн"],
+        authors: ["Don Norman"]
       }
     ]);
     expect(context.favoriteAuthors).toEqual(["Don Norman"]);
@@ -85,6 +89,6 @@ describe("buildRecommendationContext", () => {
     expect(context.readingSignals[0].eventType).toBe("FINISHED");
     expect(context.readingSignals[0].genres).toEqual(["Научная фантастика"]);
     expect(context.reviewedBooks[0].rating).toBe(5);
-    expect(context.excludedBookIds).toEqual(["book-fav", "book-finished"]);
+    expect(context.excludedBookIds).toEqual(["book-fav", "book-finished", "book-reviewed"]);
   });
 });

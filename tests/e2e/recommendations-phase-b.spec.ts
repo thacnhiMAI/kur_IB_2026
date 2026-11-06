@@ -3,9 +3,9 @@ import { expect, test } from "@playwright/test";
 test("recommendations page shows summary, insights, and card reasons", async ({ page }) => {
   await page.goto("/auth/sign-in");
 
-  await page.getByPlaceholder("Email").fill("reader@example.com");
-  await page.getByPlaceholder("Пароль").fill("Reader12345");
-  await page.getByRole("button", { name: "Войти по паролю" }).click();
+  await page.getByLabel("Email", { exact: true }).fill("reader@example.com");
+  await page.locator('input[name="password"]').fill("Reader12345");
+  await page.getByRole("button", { name: "Войти по email" }).click();
 
   await expect(page).toHaveURL(/\/profile/);
 
@@ -19,5 +19,5 @@ test("recommendations page shows summary, insights, and card reasons", async ({ 
   await expect(page.getByTestId("recommendation-card").first()).toBeVisible({
     timeout: 20000
   });
-  await expect(page.getByRole("link", { name: "Перейти к книге" }).first()).toBeVisible();
+  await expect(page.getByTestId("recommendation-card").first().getByRole("link").last()).toBeVisible();
 });

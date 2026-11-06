@@ -16,8 +16,8 @@ describe("SearchableFavoritesList", () => {
             authors: ["Дон Норман"],
             description: "Классическая книга.",
             progressPercent: 42,
-            readHref: "/read/books/design-of-everyday-things",
-            readLabel: "Читать"
+            canRead: true,
+            hasInternalFile: true
           },
           {
             id: "fav-2",
@@ -26,8 +26,8 @@ describe("SearchableFavoritesList", () => {
             authors: ["Robert Martin"],
             description: "Code craftsmanship.",
             progressPercent: 0,
-            readHref: "/read/books/clean-code",
-            readLabel: "Читать"
+            canRead: true,
+            hasInternalFile: false
           }
         ]}
       />

@@ -6,14 +6,12 @@ import { OfflineStatusBanner } from "@/components/pwa/offline-status-banner";
 import { PwaBootstrap } from "@/components/pwa/pwa-bootstrap";
 
 describe("PwaBootstrap", () => {
-  const originalNodeEnv = process.env.NODE_ENV;
-
   beforeEach(() => {
-    process.env.NODE_ENV = "test";
+    vi.stubEnv("NODE_ENV", "test");
   });
 
   afterEach(() => {
-    process.env.NODE_ENV = originalNodeEnv;
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
@@ -50,7 +48,7 @@ describe("PwaBootstrap", () => {
     const register = vi.fn().mockResolvedValue({});
     const getRegistrations = vi.fn().mockResolvedValue([]);
 
-    process.env.NODE_ENV = "production";
+    vi.stubEnv("NODE_ENV", "production");
 
     Object.defineProperty(window.navigator, "serviceWorker", {
       value: { register, getRegistrations },

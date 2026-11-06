@@ -4,6 +4,9 @@ import { auth } from "@/auth";
 import { revalidatePublicCatalogPaths } from "@/lib/catalog/public-cache";
 import { importBooksFromProviders } from "@/lib/import/service";
 import { canAccessAdmin } from "@/lib/permissions";
+import { schedulePublicationPushes } from "@/lib/pwa/push";
+
+export const maxDuration = 60;
 
 const DEFAULT_IMPORT_QUERIES = ["design", "science fiction", "history", "business"];
 
@@ -42,6 +45,7 @@ export async function POST(request: Request) {
       includeAllBookPages: true
     });
 
+    schedulePublicationPushes();
     return NextResponse.json(report);
   } catch (error) {
     return NextResponse.json(

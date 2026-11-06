@@ -2,6 +2,8 @@ import React from "react";
 
 import { HomepageBlackBlue } from "@/components/home/homepage-black-blue";
 
+export const dynamic = "force-static";
+
 export const metadata = {
   title: "Умная библиотека — откройте новый мир",
   description:

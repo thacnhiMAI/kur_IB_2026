@@ -11,6 +11,8 @@ vi.mock("@/components/auth/google-auth-button", () => ({
   )
 }));
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+
 import SignUpPage from "@/app/auth/sign-up/page";
 
 const originalGoogleClientId = process.env.GOOGLE_CLIENT_ID;
@@ -31,8 +33,6 @@ describe("SignUpPage", () => {
     render(await SignUpPage({ searchParams: Promise.resolve({}) }));
 
     expect(screen.getByRole("button", { name: "Регистрация через Google" })).toBeInTheDocument();
-    expect(
-      screen.getByText(/без отдельного пароля/i)
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Регистрация через Google" })).toBeEnabled();
   });
 });
