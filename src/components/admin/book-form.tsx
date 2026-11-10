@@ -1,11 +1,13 @@
 import React from "react";
 
+import { BookFormUpload } from "@/components/admin/book-form-upload";
 import { CoverImageField } from "@/components/admin/cover-image-field";
 import { FilterableCheckboxList } from "@/components/admin/filterable-checkbox-list";
 
 type BookFormProps = {
   action: (formData: FormData) => Promise<void>;
   submitLabel: string;
+  uploadOwner?: string;
   options: {
     authors: Array<{ id: string; name: string; slug: string }>;
     genres: Array<{ id: string; name: string; slug: string }>;
@@ -34,12 +36,12 @@ type BookFormProps = {
   };
 };
 
-export function BookForm({ action, submitLabel, options, initialValues }: BookFormProps) {
+export function BookForm({ action, submitLabel, options, initialValues, uploadOwner }: BookFormProps) {
   const selectedAuthorIds = initialValues?.authorIds ?? [];
   const selectedGenreIds = initialValues?.genreIds ?? [];
 
   return (
-    <form action={action} className="editorial-surface space-y-5 rounded-[30px] p-7">
+    <BookFormUpload action={action} submitLabel={submitLabel} uploadOwner={uploadOwner}>
       <div className="space-y-2 border-b border-[var(--surface-border)] pb-5">
         <p className="text-xs uppercase tracking-[0.22em] text-[var(--accent-text)]">Контент книги</p>
         <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Metadata и publishing settings</h2>
@@ -227,9 +229,6 @@ export function BookForm({ action, submitLabel, options, initialValues }: BookFo
         </div>
       </fieldset>
 
-      <button className="editorial-button-primary rounded-full px-5 py-3 font-medium text-white">
-        {submitLabel}
-      </button>
-    </form>
+    </BookFormUpload>
   );
 }

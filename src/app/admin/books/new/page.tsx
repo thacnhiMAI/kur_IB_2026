@@ -12,12 +12,13 @@ import { db } from "@/lib/db";
 import { schedulePublicationPushes } from "@/lib/pwa/push";
 import { bookContentInputSchema } from "@/lib/reading/content-input";
 import { syncBookContentSources } from "@/lib/reading/content-management";
+import { isCloudPdfStorageEnabled, prepareBookPdf } from "@/lib/reading/storage";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export default async function NewAdminBookPage() {
-  await requireAdmin("/admin/books/new");
+  const pageAdmin = await requireAdmin("/admin/books/new");
 
   const [authors, genres] = await Promise.all([
     db.author.findMany({ orderBy: { name: "asc" } }),
@@ -59,34 +60,44 @@ export default async function NewAdminBookPage() {
       makePdfPrimary: formData.get("makePdfPrimary") === "on"
     });
 
-    const pdfFileEntry = formData.get("pdfFile");
-    const pdfFile = pdfFileEntry instanceof File && pdfFileEntry.size > 0 ? pdfFileEntry : null;
-
-    const book = await db.book.create({
-      data: {
-        title: parsed.title,
-        subtitle: parsed.subtitle || null,
-        originalTitle: parsed.originalTitle || null,
-        slug: parsed.slug,
-        description: parsed.description,
-        coverImage: parsed.coverImage || null,
-        year: parsed.year,
-        isbn: parsed.isbn || null,
-        isbn10: parsed.isbn10 || null,
-        isbn13: parsed.isbn13 || null,
-        publisher: parsed.publisher || null,
-        edition: parsed.edition || null,
-        language: parsed.language,
-        pages: parsed.pages,
-        isFeatured: parsed.isFeatured,
-        isPublished: parsed.isPublished,
-        authors: {
-          create: parsed.authorIds.map((authorId) => ({ authorId }))
-        },
-        genres: {
-          create: parsed.genreIds.map((genreId) => ({ genreId }))
+    const storedFile = await prepareBookPdf(formData, parsed.slug, currentAdmin.id);
+    const book = await db.$transaction(async (tx) => {
+      const savedBook = await tx.book.create({
+        data: {
+          title: parsed.title,
+          subtitle: parsed.subtitle || null,
+          originalTitle: parsed.originalTitle || null,
+          slug: parsed.slug,
+          description: parsed.description,
+          coverImage: parsed.coverImage || null,
+          year: parsed.year,
+          isbn: parsed.isbn || null,
+          isbn10: parsed.isbn10 || null,
+          isbn13: parsed.isbn13 || null,
+          publisher: parsed.publisher || null,
+          edition: parsed.edition || null,
+          language: parsed.language,
+          pages: parsed.pages,
+          isFeatured: parsed.isFeatured,
+          isPublished: parsed.isPublished,
+          authors: {
+            create: parsed.authorIds.map((authorId) => ({ authorId }))
+          },
+          genres: {
+            create: parsed.genreIds.map((genreId) => ({ genreId }))
+          }
         }
-      }
+      });
+
+      await syncBookContentSources({
+        tx,
+        bookId: savedBook.id,
+        userId: currentAdmin.id,
+        storedFile,
+        externalUrl: parsedContent.externalUrl ?? "",
+        makePdfPrimary: parsedContent.makePdfPrimary
+      });
+      return savedBook;
     });
 
     if (coverFile) {
@@ -96,15 +107,6 @@ export default async function NewAdminBookPage() {
         file: coverFile
       });
     }
-
-    await syncBookContentSources({
-      bookId: book.id,
-      slug: book.slug,
-      userId: currentAdmin.id,
-      pdfFile,
-      externalUrl: parsedContent.externalUrl ?? "",
-      makePdfPrimary: parsedContent.makePdfPrimary
-    });
 
     await revalidatePublicCatalogPaths({
       bookSlugs: [book.slug]
@@ -129,6 +131,7 @@ export default async function NewAdminBookPage() {
       </div>
 
       <BookForm
+        uploadOwner={isCloudPdfStorageEnabled() ? pageAdmin.id : undefined}
         action={createBook}
         submitLabel="Создать книгу"
         options={{

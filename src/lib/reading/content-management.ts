@@ -1,31 +1,27 @@
-import { db } from "@/lib/db";
-import { storeBookPdf } from "@/lib/reading/storage";
+import type { Prisma } from "@prisma/client";
+
+import type { StoredBookPdf } from "@/lib/reading/storage";
 
 export async function syncBookContentSources({
+  tx,
   bookId,
-  slug,
   userId,
-  pdfFile,
+  storedFile,
   externalUrl,
   makePdfPrimary
 }: {
+  tx: Prisma.TransactionClient;
   bookId: string;
-  slug: string;
   userId: string;
-  pdfFile: File | null;
+  storedFile: StoredBookPdf | null;
   externalUrl: string;
   makePdfPrimary: boolean;
 }) {
   const trimmedExternalUrl = externalUrl.trim();
 
-  if (pdfFile && pdfFile.size > 0) {
-    const storedFile = await storeBookPdf({
-      slug,
-      file: pdfFile
-    });
-
+  if (storedFile) {
     if (makePdfPrimary) {
-      await db.bookContent.updateMany({
+      await tx.bookContent.updateMany({
         where: {
           bookId,
           isPrimary: true
@@ -36,7 +32,7 @@ export async function syncBookContentSources({
       });
     }
 
-    const hasPrimarySource = await db.bookContent.findFirst({
+    const hasPrimarySource = await tx.bookContent.findFirst({
       where: {
         bookId,
         isPrimary: true
@@ -44,7 +40,7 @@ export async function syncBookContentSources({
       select: { id: true }
     });
 
-    await db.bookContent.create({
+    await tx.bookContent.create({
       data: {
         bookId,
         sourceType: "PDF",
@@ -60,7 +56,7 @@ export async function syncBookContentSources({
   }
 
   if (trimmedExternalUrl) {
-    const existingExternal = await db.bookContent.findFirst({
+    const existingExternal = await tx.bookContent.findFirst({
       where: {
         bookId,
         sourceType: "EXTERNAL_LINK"
@@ -69,7 +65,7 @@ export async function syncBookContentSources({
     });
 
     if (existingExternal) {
-      await db.bookContent.update({
+      await tx.bookContent.update({
         where: { id: existingExternal.id },
         data: {
           externalUrl: trimmedExternalUrl,
@@ -77,7 +73,7 @@ export async function syncBookContentSources({
         }
       });
     } else {
-      const hasAnyPrimary = await db.bookContent.findFirst({
+      const hasAnyPrimary = await tx.bookContent.findFirst({
         where: {
           bookId,
           isPrimary: true
@@ -85,7 +81,7 @@ export async function syncBookContentSources({
         select: { id: true }
       });
 
-      await db.bookContent.create({
+      await tx.bookContent.create({
         data: {
           bookId,
           sourceType: "EXTERNAL_LINK",

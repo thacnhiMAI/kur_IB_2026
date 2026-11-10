@@ -12,6 +12,7 @@ import { db } from "@/lib/db";
 import { schedulePublicationPushes } from "@/lib/pwa/push";
 import { bookContentInputSchema } from "@/lib/reading/content-input";
 import { syncBookContentSources } from "@/lib/reading/content-management";
+import { isCloudPdfStorageEnabled, prepareBookPdf } from "@/lib/reading/storage";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -22,7 +23,7 @@ export default async function EditAdminBookPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  await requireAdmin(`/admin/books/${id}/edit`);
+  const pageAdmin = await requireAdmin(`/admin/books/${id}/edit`);
 
   const [authors, genres] = await Promise.all([
     db.author.findMany({ orderBy: { name: "asc" } }),
@@ -82,37 +83,47 @@ export default async function EditAdminBookPage({
       makePdfPrimary: formData.get("makePdfPrimary") === "on"
     });
 
-    const pdfFileEntry = formData.get("pdfFile");
-    const pdfFile = pdfFileEntry instanceof File && pdfFileEntry.size > 0 ? pdfFileEntry : null;
-
-    const updatedBook = await db.book.update({
-      where: { id },
-      data: {
-        title: parsed.title,
-        subtitle: parsed.subtitle || null,
-        originalTitle: parsed.originalTitle || null,
-        slug: parsed.slug,
-        description: parsed.description,
-        coverImage: coverFile ? currentCoverImage : parsed.coverImage || null,
-        year: parsed.year,
-        isbn: parsed.isbn || null,
-        isbn10: parsed.isbn10 || null,
-        isbn13: parsed.isbn13 || null,
-        publisher: parsed.publisher || null,
-        edition: parsed.edition || null,
-        language: parsed.language,
-        pages: parsed.pages,
-        isFeatured: parsed.isFeatured,
-        isPublished: parsed.isPublished,
-        authors: {
-          deleteMany: {},
-          create: parsed.authorIds.map((authorId) => ({ authorId }))
-        },
-        genres: {
-          deleteMany: {},
-          create: parsed.genreIds.map((genreId) => ({ genreId }))
+    const storedFile = await prepareBookPdf(formData, parsed.slug, admin.id);
+    const updatedBook = await db.$transaction(async (tx) => {
+      const savedBook = await tx.book.update({
+        where: { id },
+        data: {
+          title: parsed.title,
+          subtitle: parsed.subtitle || null,
+          originalTitle: parsed.originalTitle || null,
+          slug: parsed.slug,
+          description: parsed.description,
+          coverImage: coverFile ? currentCoverImage : parsed.coverImage || null,
+          year: parsed.year,
+          isbn: parsed.isbn || null,
+          isbn10: parsed.isbn10 || null,
+          isbn13: parsed.isbn13 || null,
+          publisher: parsed.publisher || null,
+          edition: parsed.edition || null,
+          language: parsed.language,
+          pages: parsed.pages,
+          isFeatured: parsed.isFeatured,
+          isPublished: parsed.isPublished,
+          authors: {
+            deleteMany: {},
+            create: parsed.authorIds.map((authorId) => ({ authorId }))
+          },
+          genres: {
+            deleteMany: {},
+            create: parsed.genreIds.map((genreId) => ({ genreId }))
+          }
         }
-      }
+      });
+
+      await syncBookContentSources({
+        tx,
+        bookId: savedBook.id,
+        userId: admin.id,
+        storedFile,
+        externalUrl: parsedContent.externalUrl ?? "",
+        makePdfPrimary: parsedContent.makePdfPrimary
+      });
+      return savedBook;
     });
 
     if (coverFile) {
@@ -122,15 +133,6 @@ export default async function EditAdminBookPage({
         file: coverFile
       });
     }
-
-    await syncBookContentSources({
-      bookId: updatedBook.id,
-      slug: updatedBook.slug,
-      userId: admin.id,
-      pdfFile,
-      externalUrl: parsedContent.externalUrl ?? "",
-      makePdfPrimary: parsedContent.makePdfPrimary
-    });
 
     await revalidatePublicCatalogPaths({
       bookSlugs: [currentSlug, updatedBook.slug]
@@ -155,6 +157,7 @@ export default async function EditAdminBookPage({
       </div>
 
       <BookForm
+        uploadOwner={isCloudPdfStorageEnabled() ? pageAdmin.id : undefined}
         action={updateBook}
         submitLabel="Сохранить изменения"
         options={{
