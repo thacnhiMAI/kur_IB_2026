@@ -314,6 +314,14 @@ async function ensureDemoEngagement(userId: string) {
 }
 
 async function main() {
+  if (process.env.SEED_CATALOG_ONLY === "1") {
+    if (await prisma.book.count() === 0) {
+      await ensureDemoCatalogSlugs({ localizeExisting: false });
+      console.log("Initialized an empty catalog with public demonstration books.");
+    }
+    return;
+  }
+
   console.log("Running non-destructive demo bootstrap...");
 
   const catalogWasEmpty = await bootstrapRealCatalogIfEmpty();

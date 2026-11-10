@@ -47,6 +47,7 @@ export function BookCoverStage({
             width={720}
             height={1080}
             priority
+            unoptimized={imageSrc.startsWith("/covers/")}
             sizes="(max-width: 1280px) 100vw, 380px"
             placeholder={blurDataUrl ? "blur" : "empty"}
             blurDataURL={blurDataUrl ?? undefined}

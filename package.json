@@ -6,6 +6,7 @@
     "setup": "node scripts/setup-full.mjs",
     "dev": "next dev -H 0.0.0.0",
     "build": "next build",
+    "build:vercel": "node scripts/vercel-build.mjs",
     "start": "next start -H 0.0.0.0",
     "lint": "eslint .",
     "test": "vitest run",

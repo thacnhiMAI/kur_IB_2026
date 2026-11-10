@@ -3,9 +3,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Copy, ExternalLink, QrCode } from "lucide-react";
 import Link from "next/link";
-import { QRCodeSVG } from "qrcode.react";
+import dynamic from "next/dynamic";
 
 import { getARRoutePath } from "@/lib/ar/urls";
+
+const QRCodeSVG = dynamic(() => import("qrcode.react").then((module) => module.QRCodeSVG), {
+  ssr: false
+});
 
 type AREntryProps = {
   slug: string;
