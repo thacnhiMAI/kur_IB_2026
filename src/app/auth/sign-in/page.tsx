@@ -39,12 +39,10 @@ export default async function SignInPage({
           </p>
         </div>
 
+        <AuthVisualArt />
+
         <div className="relative z-10 text-sm text-[var(--text-muted)]">
           Для учёбы. Для открытий. Для себя.
-        </div>
-
-        <div className="absolute inset-0 z-20 pointer-events-none transform scale-[0.70] origin-bottom">
-          <AuthVisualArt />
         </div>
         </div>
       </div>

@@ -50,9 +50,7 @@ export default async function SignUpPage({
           <h2 className="mt-6 text-5xl leading-[1.03] text-[var(--text-primary)]">Один аккаунт. Вся ваша библиотека.</h2>
           <p className="mt-6 text-lg leading-8 text-[var(--text-secondary)]">После подтверждения email вы получите доступ к избранному, прогрессу чтения, рекомендациям и персональным настройкам.</p>
         </div>
-        <div className="absolute inset-0 z-20 pointer-events-none transform scale-[0.70] origin-bottom">
-          <AuthVisualArt />
-        </div>
+        <AuthVisualArt />
         {/*<div className="relative grid gap-3 sm:grid-cols-3">*/}
         {/*  {['Подтверждение email', 'Приватный reader', 'AI + рекомендации'].map((item) => (*/}
         {/*    <div key={item} className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-3)] p-4 text-sm text-[var(--text-secondary)]">{item}</div>*/}
