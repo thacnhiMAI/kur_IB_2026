@@ -89,7 +89,13 @@ export function toCatalogBookDetail(book: CatalogBookRecord): CatalogBookDetail 
         : readingMode === "external"
           ? "Открыть внешний источник"
           : null,
-    primaryContentId: primaryContent?.id ?? null
+    primaryContentId: primaryContent?.id ?? null,
+    externalReadingUrl: book.contents.find(
+      (content) =>
+        content.sourceType === "EXTERNAL_LINK" &&
+        content.status === "READY" &&
+        /^https?:\/\//i.test(content.externalUrl ?? "")
+    )?.externalUrl ?? undefined
   };
 }
 

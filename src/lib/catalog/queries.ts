@@ -94,6 +94,7 @@ export type CatalogBookDetail = {
   readHref: string | null;
   readLabel: "Читать" | "Открыть внешний источник" | null;
   primaryContentId: string | null;
+  externalReadingUrl?: string;
 };
 
 export type CatalogFilterOption = {

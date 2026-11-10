@@ -1,4 +1,5 @@
-export const MAX_PDF_UPLOAD_BYTES = 100 * 1024 * 1024;
+export const MAX_PDF_UPLOAD_MIB = 500;
+export const MAX_PDF_UPLOAD_BYTES = MAX_PDF_UPLOAD_MIB * 1024 * 1024;
 export const PDF_MIME_TYPE = "application/pdf";
 export const BLOB_PDF_PREFIX = "blob:";
 

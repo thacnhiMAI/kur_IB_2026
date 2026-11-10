@@ -3,6 +3,7 @@ import React from "react";
 import { BookFormUpload } from "@/components/admin/book-form-upload";
 import { CoverImageField } from "@/components/admin/cover-image-field";
 import { FilterableCheckboxList } from "@/components/admin/filterable-checkbox-list";
+import { MAX_PDF_UPLOAD_MIB } from "@/lib/reading/pdf-upload";
 
 type BookFormProps = {
   action: (formData: FormData) => Promise<void>;
@@ -195,8 +196,15 @@ export function BookForm({ action, submitLabel, options, initialValues, uploadOw
               type="file"
               name="pdfFile"
               accept="application/pdf"
+              aria-label="PDF файл"
+              aria-describedby={uploadOwner ? "pdf-upload-limit" : undefined}
               className="w-full rounded-xl border border-[var(--surface-border)] bg-[var(--surface-2)]/80 px-4 py-3"
             />
+            {uploadOwner && (
+              <span id="pdf-upload-limit" className="block text-[var(--text-secondary)]">
+                До {MAX_PDF_UPLOAD_MIB} МБ
+              </span>
+            )}
           </label>
           <label className="space-y-2 text-sm text-[var(--text-primary)]">
             <span>Внешняя ссылка для чтения</span>

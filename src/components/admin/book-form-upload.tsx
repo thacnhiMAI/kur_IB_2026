@@ -3,7 +3,7 @@
 import { upload } from "@vercel/blob/client";
 import { useRef, useState, useTransition, type FormEvent, type ReactNode } from "react";
 
-import { hasPdfSignature, MAX_PDF_UPLOAD_BYTES, PDF_MIME_TYPE } from "@/lib/reading/pdf-upload";
+import { hasPdfSignature, MAX_PDF_UPLOAD_BYTES, MAX_PDF_UPLOAD_MIB, PDF_MIME_TYPE } from "@/lib/reading/pdf-upload";
 
 export function BookFormUpload({
   action,
@@ -34,7 +34,7 @@ export function BookFormUpload({
       if (file instanceof File && file.size > 0) {
         try {
           if (file.size > MAX_PDF_UPLOAD_BYTES || !(await hasPdfSignature(file))) {
-            setError("Выберите корректный PDF-файл размером до 100 МБ.");
+            setError(`Выберите корректный PDF-файл размером до ${MAX_PDF_UPLOAD_MIB} МБ.`);
             return;
           }
 

@@ -29,6 +29,7 @@ type BookDetailProps = {
   title: string;
   subtitle?: string | null;
   description: string;
+  externalReadingUrl?: string;
   year: number;
   coverImage?: string | null;
   blurDataUrl?: string | null;
@@ -73,6 +74,7 @@ export function BookDetail({
   title,
   subtitle,
   description,
+  externalReadingUrl,
   year,
   coverImage,
   blurDataUrl,
@@ -128,6 +130,11 @@ export function BookDetail({
               {subtitle ? <p className="mt-2 text-lg text-[var(--text-secondary)]">{subtitle}</p> : null}
             </div>
             <p className="max-w-3xl text-base leading-8 text-[var(--text-secondary)]">{description}</p>
+            {externalReadingUrl && (
+              <a href={externalReadingUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-[var(--accent-text)] underline underline-offset-4">
+                Открыть внешний источник
+              </a>
+            )}
             <p className="text-sm text-[var(--text-muted)]">Жанры: {genres.length > 0 ? genres.join(", ") : "Каталог"}</p>
           </div>
 

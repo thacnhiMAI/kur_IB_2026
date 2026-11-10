@@ -86,6 +86,7 @@ export default async function BookDetailPage({ params }: { params: Promise<{ slu
         title={book.title}
         subtitle={book.subtitle}
         description={book.description}
+        externalReadingUrl={book.externalReadingUrl}
         year={book.year}
         coverImage={book.coverImage}
         blurDataUrl={book.blurDataUrl}
