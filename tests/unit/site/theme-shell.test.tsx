@@ -2,6 +2,10 @@ import { render, screen } from "@testing-library/react";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("next-auth/react", () => ({
+  getSession: vi.fn().mockResolvedValue(null)
+}));
+
 vi.mock("@/components/auth/auth-nav-client", () => ({
   AuthNavClient: () => <div>Auth Nav</div>
 }));

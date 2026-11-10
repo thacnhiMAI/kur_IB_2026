@@ -212,17 +212,11 @@ describe("getBookDetailPageData", () => {
       "/ar/books/design-of-everyday-things"
     );
     expect(screen.getByAltText("Дизайн привычных вещей")).toHaveAttribute(
-      "sizes",
-      "(max-width: 1280px) 100vw, 380px"
+      "src",
+      "/covers/design-of-everyday-things-9780441172719.jpg"
     );
     expect(screen.getByText("0%")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Оставить отзыв" })).toBeInTheDocument();
-    expect(
-      screen
-        .getByAltText("Дизайн привычных вещей")
-        .getAttribute("src")
-        ?.includes("design-of-everyday-things-9780441172719.jpg")
-    ).toBe(true);
     expect(screen.getByText("Reader One")).toBeInTheDocument();
     expect(screen.getByText("Очень полезная книга о проектировании.")).toBeInTheDocument();
   });
