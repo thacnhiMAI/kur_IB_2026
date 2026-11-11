@@ -10,7 +10,9 @@ const { decideARPreviewMode } = vi.hoisted(() => ({
   decideARPreviewMode: vi.fn()
 }));
 const attachBookScene = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const attachReaderScene = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 vi.mock("@/components/ar/webxr-scene", () => ({ attachBookScene }));
+vi.mock("@/components/ar/webxr-reader-scene", () => ({ attachReaderScene }));
 
 const { notFound } = vi.hoisted(() => ({
   notFound: vi.fn(() => {
@@ -45,6 +47,7 @@ vi.mock("@react-three/drei", () => ({
 }));
 
 import ARBookPage from "@/app/ar/books/[slug]/page";
+import { auth } from "@/auth";
 
 const BOOK_DETAIL_FIXTURE = {
   id: "book-1",
@@ -78,6 +81,7 @@ const originalWebGLRenderingContext = window.WebGLRenderingContext;
 describe("ARBookPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(auth).mockResolvedValue(null as never);
     decideARPreviewMode.mockResolvedValue({
       mode: "2d-fallback",
       reason: "webgl-unsupported",
@@ -202,6 +206,22 @@ describe("ARBookPage", () => {
     await screen.findByText(/AR session is active/);
     unmount();
     expect(end).toHaveBeenCalledOnce();
+  });
+
+  it("opens the signed-in reader with optional hand tracking", async () => {
+    decideARPreviewMode.mockResolvedValue({ mode: "webxr", reason: null, renderer: "book-solid" });
+    vi.mocked(auth).mockResolvedValue({ user: { id: "reader" } } as never);
+    getBookDetailPageData.mockResolvedValue(BOOK_DETAIL_FIXTURE);
+    const session = Object.assign(new EventTarget(), { end: vi.fn().mockResolvedValue(undefined) });
+    const requestSession = vi.fn().mockResolvedValue(session);
+    Object.defineProperty(navigator, "xr", {
+      configurable: true,
+      value: { requestSession, isSessionSupported: vi.fn().mockResolvedValue(true) }
+    });
+    render(await ARBookPage({ params: Promise.resolve({ slug: BOOK_DETAIL_FIXTURE.slug }) }));
+    fireEvent.click(await screen.findByRole("button", { name: "Читать PDF в AR" }));
+    await waitFor(() => expect(attachReaderScene).toHaveBeenCalledWith(session, "/api/reading/content/content-1"));
+    expect(requestSession).toHaveBeenCalledWith("immersive-ar", { optionalFeatures: ["hand-tracking"] });
   });
 
   it("falls back to the 3d preview when webxr session startup fails", async () => {

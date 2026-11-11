@@ -61,7 +61,9 @@ export function ARPreviewWebXR({
 
       setStatus(`Starting AR session for "${book.title}"...`);
 
-      const nextSession = await xr.requestSession("immersive-ar");
+      const nextSession = mode === "reader"
+        ? await xr.requestSession("immersive-ar", { optionalFeatures: ["hand-tracking"] })
+        : await xr.requestSession("immersive-ar");
       if (!mounted.current) {
         await nextSession.end();
         return;
@@ -131,7 +133,11 @@ export function ARPreviewWebXR({
             {isStarting ? "Starting AR..." : "Start AR"}
           </button>
         </div>
-        {pdfUrl ? <p className="text-sm text-slate-300">В режиме чтения нажимайте стрелки под страницей, чтобы листать PDF.</p> : null}
+        {pdfUrl ? (
+          <p className="text-sm text-slate-300">
+            Чтобы листать PDF, выберите стрелку под страницей. На телефоне коснитесь её. В гарнитуре с отслеживанием рук наведите указатель на стрелку и сведите большой и указательный пальцы.
+          </p>
+        ) : null}
       </div>
     </div>
   );
