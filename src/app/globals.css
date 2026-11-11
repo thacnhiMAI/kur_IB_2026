@@ -2050,6 +2050,12 @@ html[data-theme="light"] .auth-shell .text-blue-100 { color: #1d4ed8 !important;
 .reader-selection-search { position:fixed; z-index:135; width:min(340px, calc(100vw - 16px)); max-height:calc(100dvh - 16px); overflow:auto; border:1px solid var(--accent-border); border-radius:14px; background:var(--surface-1); color:var(--text-primary); box-shadow:0 14px 40px #0005; }
 .reader-selection-search header { display:flex; align-items:center; justify-content:space-between; padding:6px 10px; border-bottom:1px solid var(--accent-border); }
 .reader-selection-search header button { display:grid; place-items:center; width:40px; height:40px; }
+.reader-selection-search header .reader-selection-translation-toggle { width:auto; padding:0 10px; border-radius:8px; }
+.reader-selection-translation-toggle[aria-expanded="true"] { background:var(--accent-soft); color:var(--accent-text); }
+.reader-selection-translation-languages { display:grid; grid-template-columns:minmax(0,1fr) 36px minmax(0,1fr); align-items:end; gap:6px; }
+.reader-selection-translation-languages label { display:grid; gap:3px; min-width:0; }
+.reader-selection-translation-languages select, .reader-selection-translation-languages button { width:100%; min-width:0; height:36px; padding:4px; border:1px solid var(--accent-border); border-radius:8px; color:var(--text-primary); background:var(--surface-2); }
+.reader-selection-translation-languages button { display:grid; place-items:center; }
 .reader-selection-search-grip { flex:1; display:flex; align-items:center; gap:8px; min-height:40px; cursor:grab; touch-action:none; user-select:none; }
 .reader-selection-search-grip:active { cursor:grabbing; }
 .reader-selection-search-body { display:grid; gap:8px; padding:10px; font-size:.86rem; }

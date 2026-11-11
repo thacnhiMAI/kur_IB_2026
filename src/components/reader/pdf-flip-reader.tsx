@@ -1456,7 +1456,7 @@ export default function PdfFlipReader({
             anchor: pendingHighlight.anchor,
             getImage: () => getSelectionImage(pendingHighlight),
             getText: () => pageLoaderRef.current?.selectionText(pendingHighlight.page, pendingHighlight.rect, pendingHighlight.aspect) ?? Promise.resolve("")
-          })}>Search</button>
+          })}>Поиск</button>
           <button type="button" onClick={() => setEditingHighlight(true)}>Заметка</button>
           <button type="button" onClick={() => setPendingHighlight(null)}>Отмена</button>
         </div>

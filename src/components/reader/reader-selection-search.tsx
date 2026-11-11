@@ -1,10 +1,22 @@
 "use client";
 
-import { Grip, X } from "lucide-react";
+import { ArrowLeftRight, Grip, X } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 type Point = { x: number; y: number };
+const translationLanguages = {
+  ru: "Русский",
+  en: "Английский",
+  vi: "Вьетнамский",
+  de: "Немецкий",
+  es: "Испанский",
+  fr: "Французский",
+  zh: "Китайский (упрощённый)",
+  ja: "Японский",
+  ko: "Корейский",
+  ar: "Арабский"
+};
 
 export function ReaderSelectionSearch({ anchor, getImage, getText, onClose }: {
   anchor: Point;
@@ -21,6 +33,12 @@ export function ReaderSelectionSearch({ anchor, getImage, getText, onClose }: {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [lensError, setLensError] = useState("");
+  const [translationOpen, setTranslationOpen] = useState(false);
+  const [languages, setLanguages] = useState({ source: "en", target: "ru" });
+  const text = query.trim();
+  const translationUrl = `https://translate.google.com/?${new URLSearchParams({
+    sl: languages.source, tl: languages.target, text, op: "translate", hl: "ru"
+  })}`;
 
   function clamp({ x, y }: Point) {
     const { clientWidth, clientHeight } = document.documentElement;
@@ -78,7 +96,7 @@ export function ReaderSelectionSearch({ anchor, getImage, getText, onClose }: {
   }, [getImage, getText]);
 
   return (
-    <section ref={box} className="reader-selection-search" role="dialog" aria-label="Search" style={{ left: position.x, top: position.y }}
+    <section ref={box} className="reader-selection-search" role="dialog" aria-label="Поиск и перевод" style={{ left: position.x, top: position.y }}
       onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); onClose(); } }}>
       <header>
         <div className="reader-selection-search-grip" onPointerDown={(event) => {
@@ -89,16 +107,41 @@ export function ReaderSelectionSearch({ anchor, getImage, getText, onClose }: {
           const start = drag.current;
           if (start?.id === event.pointerId) setPosition(clamp({ x: event.clientX - start.x, y: event.clientY - start.y }));
         }} onLostPointerCapture={() => { drag.current = null; }}>
-          <Grip size={18} /> Search
+          <Grip size={18} /> Поиск
         </div>
-        <button type="button" aria-label="Закрыть поиск" onClick={onClose}><X size={18} /></button>
+        <button type="button" className="reader-selection-translation-toggle" aria-expanded={translationOpen} onClick={() => setTranslationOpen(!translationOpen)}>Перевод</button>
+        <button type="button" aria-label="Закрыть окно" onClick={onClose}><X size={18} /></button>
       </header>
       <div className="reader-selection-search-body">
         {image ? <Image src={image.url} alt="Выделенная область PDF" width={300} height={120} unoptimized /> : null}
-        <textarea aria-label="Поисковый запрос" rows={3} maxLength={800} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Введите или исправьте текст для поиска…" />
-        <p role="status">{loading ? "Распознаём выделенный фрагмент…" : error || "Проверьте распознанный текст перед поиском."}</p>
-        {query.trim() ? <a href={`https://www.google.com/search?q=${encodeURIComponent(query.trim())}`} target="_blank" rel="noopener noreferrer">Google Search</a> : null}
-        {image ? (
+        <textarea aria-label={translationOpen ? "Текст для перевода" : "Поисковый запрос"} rows={3} maxLength={800} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={translationOpen ? "Введите или исправьте текст для перевода…" : "Введите или исправьте текст для поиска…"} />
+        <p role="status">{loading ? "Распознаём выделенный фрагмент…" : translationOpen ? "Проверьте текст и выберите языки перевода." : error || "Проверьте распознанный текст перед поиском."}</p>
+        {translationOpen ? (
+          <>
+            <div className="reader-selection-translation-languages">
+              <label>С языка
+                <select value={languages.source} onChange={(event) => {
+                  const source = event.currentTarget.value;
+                  setLanguages((current) => ({ source, target: source === current.target ? current.source : current.target }));
+                }}>
+                  {Object.entries(translationLanguages).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+                </select>
+              </label>
+              <button type="button" aria-label="Поменять языки местами" onClick={() => setLanguages(({ source, target }) => ({ source: target, target: source }))}><ArrowLeftRight size={18} /></button>
+              <label>На язык
+                <select value={languages.target} onChange={(event) => {
+                  const target = event.currentTarget.value;
+                  setLanguages((current) => ({ source: target === current.source ? current.target : current.source, target }));
+                }}>
+                  {Object.entries(translationLanguages).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+                </select>
+              </label>
+            </div>
+            {text ? <a href={translationUrl} target="_blank" rel="noopener noreferrer">Перевести в Google</a> : null}
+          </>
+        ) : null}
+        {!translationOpen && text ? <a href={`https://www.google.com/search?q=${encodeURIComponent(text)}`} target="_blank" rel="noopener noreferrer">Поиск в Google</a> : null}
+        {!translationOpen && image ? (
           <form action="https://lens.google.com/v3/upload" method="post" encType="multipart/form-data" target="_blank" rel="noopener noreferrer"
             onSubmit={(event) => {
               const input = lensFileInput.current;
@@ -115,7 +158,7 @@ export function ReaderSelectionSearch({ anchor, getImage, getText, onClose }: {
               }
             }}>
             <input ref={lensFileInput} type="file" name="encoded_image" hidden />
-            {query.trim() ? <input type="hidden" name="q" value={query.trim()} /> : null}
+            {text ? <input type="hidden" name="q" value={text} /> : null}
             <button type="submit" className="reader-selection-search-lens">Google Lens</button>
             {lensError ? <p role="alert">{lensError}</p> : null}
           </form>
