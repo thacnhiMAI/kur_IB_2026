@@ -496,12 +496,21 @@ export function ReaderFloatingToolbar(props: ReaderFloatingToolbarProps) {
           <div className="reader-toolbar-actions">
             <button
               type="button"
-              className="reader-tool-button reader-tool-button--wide"
+              className={`${compactIconButton} reader-mobile-collapse`}
+              onClick={toggleExpanded}
+              aria-expanded={expanded}
+              aria-label="Свернуть панель"
+            >
+              <Minus size={21} strokeWidth={2.4} />
+            </button>
+            <button
+              type="button"
+              className={compactIconButton}
               onClick={props.onToggleSpeech}
-              title="Читать текущую страницу вслух"
+              title={props.speaking ? "Остановить чтение вслух" : "Читать текущую страницу вслух"}
+              aria-label={props.speaking ? "Остановить чтение вслух" : "Читать текущую страницу вслух"}
             >
               {props.speaking ? <Square size={17} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
-              <span>{props.speaking ? "Стоп" : "Читать"}</span>
             </button>
 
             <button

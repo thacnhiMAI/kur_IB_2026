@@ -8,7 +8,7 @@ export type BookContentSummary = {
   externalUrl: string | null;
 };
 
-export function resolvePrimaryBookContent(items: BookContentSummary[]) {
+export function resolvePrimaryBookContent<T extends BookContentSummary>(items: T[]) {
   const ordered = [...items].sort(
     (left, right) => Number(right.isPrimary) - Number(left.isPrimary)
   );

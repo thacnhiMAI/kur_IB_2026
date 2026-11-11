@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { PageFlip, type SizeType } from "page-flip";
 import { pdfjs } from "react-pdf";
 
@@ -15,6 +15,7 @@ import {
   APP_SETTINGS_STORAGE_KEY,
   readAppSettingsFromBrowser
 } from "@/lib/preferences/settings";
+import { openReaderPageCache, type ReaderDocumentInfo } from "@/lib/reading/reader-page-cache";
 
 type PdfFlipReaderProps = {
   title: string;
@@ -23,6 +24,7 @@ type PdfFlipReaderProps = {
   fileUrl: string;
   bookId: string;
   contentId: string | null;
+  cacheScope?: string;
   initialPage?: number;
   isAuthenticated: boolean;
 };
@@ -46,9 +48,20 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url
 ).toString();
 
-const PAGE_WIDTH = 700;
-const IMAGE_WIDTH = 1400;
+const OCR_IMAGE_WIDTH = 1400;
 const READER_BUILD = "reader-v14";
+
+function fitPage(stage: HTMLElement, aspect: number, totalPages: number) {
+  const columns = totalPages > 1 && window.innerWidth > 760 && stage.offsetWidth >= 560 ? 2 : 1;
+  const widthBudget = (stage.offsetWidth - 28) / columns;
+  const heightBudget = stage.offsetHeight - 28;
+  const width = Math.max(1, Math.floor(Math.min(widthBudget, heightBudget / aspect)));
+  return { width, height: Math.round(width * aspect), columns };
+}
+
+function rasterWidth(pageWidth: number, zoom: number) {
+  return Math.min(4096, Math.max(1024, Math.ceil(pageWidth * zoom * window.devicePixelRatio / 256) * 256));
+}
 
 function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => {
@@ -220,6 +233,7 @@ export default function PdfFlipReader({
   fileUrl,
   bookId,
   contentId,
+  cacheScope,
   initialPage = 1,
   isAuthenticated
 }: PdfFlipReaderProps) {
@@ -231,16 +245,21 @@ export default function PdfFlipReader({
   const pageTextsRef = useRef<Record<number, string>>({});
   const pageMathHintsRef = useRef<Record<number, boolean>>({});
   const mathOcrAttemptedRef = useRef<Set<number>>(new Set());
-  const pageImageUrlsRef = useRef<Record<number, string>>({});
+  const pageLoaderRef = useRef<{
+    show: (page: number, width: number, prefetch?: boolean) => Promise<void>;
+    raster: (page: number, width: number) => Promise<Blob>;
+    readText: (page: number) => Promise<void>;
+    retain: (first: number, last: number) => void;
+  } | null>(null);
   const ocrJobsRef = useRef<Map<number, Promise<string>>>(new Map());
   const speechRunIdRef = useRef(0);
   const annotationModeRef = useRef(false);
   const annotationsRef = useRef<AnnotationRecord[]>([]);
-  const pageAspectRef = useRef(Math.SQRT2);
+  const documentInfoRef = useRef<ReaderDocumentInfo | null>(null);
   const currentPageRef = useRef(initialPage);
 
   const [totalPages, setTotalPages] = useState(0);
-  const [preparedPages, setPreparedPages] = useState(0);
+  const [pageWidth, setPageWidth] = useState(0);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -254,13 +273,12 @@ export default function PdfFlipReader({
   const [aiOpen, setAiOpen] = useState(false);
   const [aiEnabled, setAiEnabled] = useState(true);
   const [annotationsOpen, setAnnotationsOpen] = useState(false);
-  const [notesListOpen, setNotesListOpen] = useState(true);
+  const [notesListOpen, setNotesListOpen] = useState(false);
   const [aiRailWidth, setAiRailWidth] = useState(340);
   const [pendingHighlight, setPendingHighlight] = useState<{ page: number; rect: HighlightRect } | null>(null);
   const [selectedAnnotation, setSelectedAnnotation] = useState<AnnotationRecord | null>(null);
   const [highlightContextMenu, setHighlightContextMenu] = useState<HighlightContextMenu>(null);
   const [annotations, setAnnotations] = useState<AnnotationRecord[]>([]);
-  const [textRevision, setTextRevision] = useState(0);
   const [fullscreenActive, setFullscreenActive] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchBusy, setSearchBusy] = useState(false);
@@ -269,6 +287,11 @@ export default function PdfFlipReader({
 
   useEffect(() => {
     console.info(`[reader] build=${READER_BUILD}`);
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    const syncNotes = () => setNotesListOpen(desktop.matches);
+    syncNotes();
+    desktop.addEventListener("change", syncNotes);
+    return () => desktop.removeEventListener("change", syncNotes);
   }, []);
 
   useEffect(() => {
@@ -328,64 +351,36 @@ export default function PdfFlipReader({
   const fitBookToStage = useCallback(() => {
     const mount = mountRef.current;
     const stage = mount?.closest<HTMLElement>(".pdf3d-stage");
-    if (!mount || !stage) return;
+    const host = mount?.querySelector<HTMLElement>(".pdf3d-book");
+    const clip = mount?.querySelector<HTMLElement>(".pdf3d-book-clip");
+    const info = documentInfoRef.current;
+    if (!stage || !host || !clip || !info) return null;
+
+    stage.style.setProperty("--page-aspect", String(info.aspect));
+    const { width, height, columns } = fitPage(stage, info.aspect, info.pages);
+    const bookWidth = width * columns;
+    clip.style.setProperty("--book-width", bookWidth + "px");
+    clip.style.setProperty("--book-height", height + "px");
+    Object.assign(host.style, {
+      width: bookWidth + "px", height: height + "px",
+      minWidth: bookWidth + "px", minHeight: height + "px", maxWidth: bookWidth + "px"
+    });
 
     const engine = flipRef.current;
-    const ratio = Math.max(0.5, pageAspectRef.current || Math.SQRT2);
-    const isFullscreen = document.fullscreenElement === sectionRef.current;
-    const horizontalPadding = isFullscreen ? 20 : 32;
-    const verticalPadding = isFullscreen ? 16 : 28;
-    const availableWidth = Math.max(280, stage.clientWidth - horizontalPadding);
-    const availableHeight = Math.max(280, stage.clientHeight - verticalPadding);
-    const wantsSpread = availableWidth >= 820;
-    const widthBudget = wantsSpread
-      ? Math.max(220, (availableWidth - 20) / 2)
-      : Math.max(220, availableWidth - 12);
-    const fittedWidth = Math.max(220, Math.floor(Math.min(widthBudget, availableHeight / ratio)));
-    const fittedHeight = Math.max(280, Math.floor(fittedWidth * ratio));
-
-    const host = mount.querySelector<HTMLElement>(".pdf3d-book");
-    const clip = mount.querySelector<HTMLElement>(".pdf3d-book-clip");
-    if (!host || !clip) return;
-
-    if (!engine) {
-      host.style.width = `${fittedWidth}px`;
-      clip.style.width = `${fittedWidth}px`;
-      clip.style.height = `${fittedHeight}px`;
-      const sheet = host.querySelector<HTMLElement>(".pdf3d-sheet");
-      if (sheet) sheet.style.height = `${fittedHeight}px`;
-      return;
+    if (engine) {
+      Object.assign(engine.getSettings(), { width, height, usePortrait: true });
+      engine.update();
     }
-
-    const settings = engine.getSettings() as unknown as {
-      width: number; height: number; minWidth: number; maxWidth: number;
-      minHeight: number; maxHeight: number;
-    };
-    settings.width = fittedWidth;
-    settings.height = fittedHeight;
-    settings.minWidth = Math.min(220, fittedWidth);
-    settings.maxWidth = fittedWidth;
-    settings.minHeight = Math.min(Math.floor(220 * ratio), fittedHeight);
-    settings.maxHeight = fittedHeight;
-
-    const pageColumns = engine.getOrientation() === "portrait" ? 1 : 2;
-    host.style.width = `${fittedWidth * pageColumns}px`;
-    host.style.height = `${fittedHeight}px`;
-    host.style.minWidth = `${settings.minWidth * pageColumns}px`;
-    host.style.minHeight = `${settings.minHeight}px`;
-    host.style.maxWidth = `${fittedWidth * pageColumns}px`;
-    host.style.maxHeight = `${fittedHeight}px`;
-    clip.style.width = `${fittedWidth * pageColumns}px`;
-    clip.style.height = `${fittedHeight}px`;
-    engine.getUI().setOrientationStyle(engine.getOrientation());
-    engine.update();
+    setPageWidth(width);
+    return { width, height, columns };
   }, []);
 
   useEffect(() => {
     let frame = 0;
+    const stage = mountRef.current?.closest(".pdf3d-stage");
     const scheduleFit = () => {
       cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => requestAnimationFrame(fitBookToStage));
+      frame = requestAnimationFrame(() => { fitBookToStage(); });
     };
     const syncFullscreen = () => {
       const engine = flipRef.current;
@@ -394,10 +389,13 @@ export default function PdfFlipReader({
       scheduleFit();
     };
 
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(scheduleFit);
+    if (stage) observer?.observe(stage, { box: "border-box" });
     document.addEventListener("fullscreenchange", syncFullscreen);
     window.addEventListener("resize", scheduleFit, { passive: true });
     return () => {
       cancelAnimationFrame(frame);
+      observer?.disconnect();
       document.removeEventListener("fullscreenchange", syncFullscreen);
       window.removeEventListener("resize", scheduleFit);
     };
@@ -463,8 +461,112 @@ export default function PdfFlipReader({
     let engine: PageFlip | null = null;
     let engineLoaded = false;
     let loadingTask: ReturnType<typeof pdfjs.getDocument> | null = null;
-    let renderTask: { cancel: () => void } | null = null;
-    const objectUrls: string[] = [];
+    const renderTasks = new Set<{ cancel: () => void }>();
+    const images = new Map<number, { element: HTMLImageElement; url?: string; width?: number; request?: number }>();
+    const rasterJobs = new Map<string, Promise<Blob>>();
+    const cachePromise = openReaderPageCache(cacheScope);
+    let documentInfo: ReaderDocumentInfo | undefined;
+
+    function getDocument() {
+      if (cancelled) throw new Error("Чтение отменено.");
+      loadingTask ??= pdfjs.getDocument({
+        url: fileUrl.trim(),
+        disableAutoFetch: true,
+        disableStream: true,
+        rangeChunkSize: 256 * 1024
+      });
+      return loadingTask.promise;
+    }
+
+    async function readText(number: number) {
+      if (number in pageTextsRef.current) return;
+      const pdf = await getDocument();
+      const page = await pdf.getPage(number);
+      const content = await page.getTextContent();
+      if (cancelled) return;
+      const extracted = extractNativePdfText(content.items as unknown[]);
+      pageTextsRef.current[number] = extracted.text;
+      pageMathHintsRef.current[number] = extracted.hasMath;
+    }
+
+    function raster(number: number, width: number) {
+      const key = number + ":" + width;
+      const existing = rasterJobs.get(key);
+      if (existing) return existing;
+
+      const job = (async () => {
+        const cache = await cachePromise;
+        const cached = await cache?.readPage(number, width).catch(() => undefined);
+        if (cached?.size) return cached;
+        const pdf = await getDocument();
+        const page = await pdf.getPage(number);
+        if (cancelled) throw new Error("Чтение отменено.");
+        const original = page.getViewport({ scale: 1 });
+        const scale = Math.min(width / original.width, Math.sqrt(12_000_000 / (original.width * original.height)));
+        const viewport = page.getViewport({ scale });
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.ceil(viewport.width);
+        canvas.height = Math.ceil(viewport.height);
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Браузер не поддерживает Canvas.");
+
+        const task = page.render({ canvas, canvasContext: context, viewport, background: "#ffffff" });
+        renderTasks.add(task);
+        try {
+          await task.promise;
+          const image = await canvasToBlob(canvas);
+          if (!cancelled) void cache?.savePage(number, width, image);
+          return image;
+        } finally {
+          renderTasks.delete(task);
+          canvas.width = 0;
+          canvas.height = 0;
+          page.cleanup();
+        }
+      })().finally(() => rasterJobs.delete(key));
+      rasterJobs.set(key, job);
+      return job;
+    }
+
+    async function show(number: number, width: number, prefetch = false) {
+      const image = images.get(number);
+      if (!image) return;
+      image.request = width;
+      if ((image.width ?? 0) >= width) return;
+      const blob = prefetch && !loadingTask
+        ? await (await cachePromise)?.readPage(number, width).catch(() => undefined)
+        : await raster(number, width);
+      if (!blob || cancelled || image.request !== width || (image.width ?? 0) >= width) return;
+      const url = URL.createObjectURL(blob);
+      const preview = new Image();
+      preview.src = url;
+      try {
+        await preview.decode();
+        if (cancelled || image.request !== width || (image.width ?? 0) >= width) return;
+        if (image.url) URL.revokeObjectURL(image.url);
+        image.element.src = url;
+        image.element.hidden = false;
+        image.url = url;
+        image.width = width;
+      } finally {
+        if (image.url !== url) URL.revokeObjectURL(url);
+      }
+    }
+
+    function retain(first: number, last: number) {
+      for (const [number, image] of images) {
+        if (number >= first && number <= last) continue;
+        image.request = undefined;
+        if (!image.url) continue;
+        URL.revokeObjectURL(image.url);
+        image.element.removeAttribute("src");
+        image.element.hidden = true;
+        image.url = undefined;
+        image.width = undefined;
+      }
+    }
+    const loader = { show, raster, readText, retain };
+    pageLoaderRef.current = loader;
 
     const clip = document.createElement("div");
     clip.className = "pdf3d-book-clip";
@@ -474,18 +576,17 @@ export default function PdfFlipReader({
     mount.appendChild(clip);
 
     pageTextsRef.current = {};
-    pageImageUrlsRef.current = {};
     ocrJobsRef.current.clear();
     mathOcrAttemptedRef.current.clear();
     pageMathHintsRef.current = {};
-    setTextRevision((value) => value + 1);
     setReady(false);
     setBusy(false);
     setError("");
     setToolMessage("");
     setSaveError(false);
     setTotalPages(0);
-    setPreparedPages(0);
+    setPageWidth(0);
+    documentInfoRef.current = null;
     setPosition({ page: 1, landscape: false });
 
     function installAnnotationLayer(sheet: HTMLDivElement, pageNumber: number) {
@@ -575,124 +676,67 @@ export default function PdfFlipReader({
     async function openBook() {
       try {
         if (!fileUrl.trim()) throw new Error("Не указана ссылка на PDF.");
-        loadingTask = pdfjs.getDocument({ url: fileUrl.trim() });
-        const pdf = await loadingTask.promise;
+        const cache = await cachePromise;
+        documentInfo = await cache?.readInfo().catch(() => undefined);
+        if (!documentInfo) {
+          const pdf = await getDocument();
+          if (pdf.numPages < 1) throw new Error("PDF не содержит страниц.");
+          const first = await pdf.getPage(1);
+          const viewport = first.getViewport({ scale: 1 });
+          documentInfo = { pages: pdf.numPages, aspect: viewport.height / viewport.width };
+          first.cleanup();
+          if (!cancelled) void cache?.saveInfo(documentInfo);
+        }
         if (cancelled) return;
-        if (pdf.numPages < 1) throw new Error("PDF не содержит страниц.");
-        setTotalPages(pdf.numPages);
+        documentInfoRef.current = documentInfo;
+        const { pages } = documentInfo;
+        setTotalPages(pages);
 
-        const sheets: HTMLDivElement[] = [];
-        let pageHeight = Math.round(PAGE_WIDTH * Math.SQRT2);
-
-        for (let number = 1; number <= pdf.numPages; number += 1) {
-          if (cancelled) return;
-          const page = await pdf.getPage(number);
-          if (cancelled) return;
-          const originalViewport = page.getViewport({ scale: 1 });
-          if (number === 1) pageHeight = Math.round(PAGE_WIDTH * (originalViewport.height / originalViewport.width));
-
-          try {
-            const textContent = await page.getTextContent();
-            const extracted = extractNativePdfText(textContent.items as unknown[]);
-            pageTextsRef.current[number] = extracted.text;
-            pageMathHintsRef.current[number] = extracted.hasMath;
-          } catch {
-            pageTextsRef.current[number] = "";
-            pageMathHintsRef.current[number] = false;
-          }
-
-          const viewport = page.getViewport({ scale: IMAGE_WIDTH / originalViewport.width });
-          const canvas = document.createElement("canvas");
-          canvas.width = Math.ceil(viewport.width);
-          canvas.height = Math.ceil(viewport.height);
-          let blob: Blob;
-          try {
-            const context = canvas.getContext("2d");
-            if (!context) throw new Error("Браузер не поддерживает Canvas.");
-            const task = page.render({ canvas, canvasContext: context, viewport, background: "#ffffff" });
-            renderTask = task;
-            await task.promise;
-            renderTask = null;
-            if (cancelled) return;
-            blob = await canvasToBlob(canvas);
-          } finally {
-            renderTask = null;
-            canvas.width = 0;
-            canvas.height = 0;
-            page.cleanup();
-          }
-          if (cancelled) return;
-
-          const imageUrl = URL.createObjectURL(blob);
-          pageImageUrlsRef.current[number] = imageUrl;
-          objectUrls.push(imageUrl);
+        const sheets = Array.from({ length: pages }, (_, index) => {
+          const number = index + 1;
           const image = new Image();
-          image.alt = `Страница ${number}`;
+          image.alt = "Страница " + number;
           image.draggable = false;
-          image.src = imageUrl;
-          await image.decode();
-          if (cancelled) return;
+          image.hidden = true;
+          images.set(number, { element: image });
 
           const sheet = document.createElement("div");
           sheet.className = "pdf3d-sheet";
           sheet.dataset.density = "soft";
           sheet.dataset.pageNumber = String(number);
-          sheet.setAttribute("aria-label", `Страница ${number}`);
+          sheet.setAttribute("aria-label", image.alt);
           sheet.appendChild(image);
           installAnnotationLayer(sheet, number);
-          sheets.push(sheet);
-          host.appendChild(sheet);
-          setPreparedPages(number);
-        }
+          return sheet;
+        });
 
+        const dimensions = fitBookToStage();
+        if (!dimensions) return;
+        const { width, height, columns } = dimensions;
+        const startIndex = normalizePage(initialPageRef.current, pages) - 1;
+        // Landscape starts on the even zero-based index of the spread.
+        const firstVisible = columns === 2 ? startIndex - (startIndex % 2) + 1 : startIndex + 1;
+        const initialWidth = rasterWidth(width, clampZoom(readAppSettingsFromBrowser().readerZoom));
+        await Promise.all(Array.from({ length: columns }, (_, i) => firstVisible + i)
+          .filter((number) => number <= pages)
+          .map((number) => show(number, initialWidth)));
         if (cancelled) return;
-        setTextRevision((value) => value + 1);
 
-        // 100% means "fit the complete page/spread inside the visible reader",
-        // not a 700px-wide physical page that can extend below the viewport.
-        const stage = mountRef.current?.closest<HTMLElement>(".pdf3d-stage");
-        const stageRect = stage?.getBoundingClientRect();
-        const availableWidth = Math.max(300, (stage?.clientWidth ?? window.innerWidth) - 32);
-        const availableHeight = Math.max(320, (stage?.clientHeight ?? (window.innerHeight - (stageRect?.top ?? 140) - 24)) - 28);
-        const ratio = pageHeight / PAGE_WIDTH;
-        pageAspectRef.current = ratio;
-        const widthBudget = availableWidth < 820 ? availableWidth - 12 : (availableWidth - 28) / 2;
-        const fittedWidth = Math.max(240, Math.floor(Math.min(widthBudget, availableHeight / ratio)));
-        const fittedHeight = Math.max(320, Math.floor(fittedWidth * ratio));
-
-        if (pdf.numPages === 1) {
+        if (pages === 1) {
           host.classList.add("pdf3d-single");
-          host.style.width = `${fittedWidth}px`;
-          clip.style.width = `${fittedWidth}px`;
-          clip.style.height = `${fittedHeight}px`;
-          const onlySheet = sheets[0];
-          if (onlySheet) onlySheet.style.height = `${fittedHeight}px`;
+          host.appendChild(sheets[0]);
           host.style.visibility = "visible";
           setPosition({ page: 1, landscape: false });
           setReady(true);
           return;
         }
 
-        const startIndex = normalizePage(initialPageRef.current, pdf.numPages) - 1;
-        const portraitMode = window.innerWidth < 760;
-        const spreadColumns = portraitMode ? 1 : 2;
-        host.style.width = `${fittedWidth * spreadColumns}px`;
-        host.style.height = `${fittedHeight}px`;
-        clip.style.width = `${fittedWidth * spreadColumns}px`;
-        clip.style.height = `${fittedHeight}px`;
         const instance = new PageFlip(host, {
-          width: fittedWidth,
-          height: fittedHeight,
-          size: "stretch" as SizeType,
-          minWidth: Math.min(240, fittedWidth),
-          maxWidth: fittedWidth,
-          minHeight: Math.min(Math.round((240 / fittedWidth) * fittedHeight), fittedHeight),
-          maxHeight: fittedHeight,
+          width,
+          height,
+          size: "fixed" as SizeType,
           startPage: startIndex,
-          // Portrait mode clones HTML page elements in StPageFlip. Keep it only
-          // on genuinely narrow screens so desktop zoom-out never exposes a
-          // cloned "second page" underneath the flipping sheet.
-          usePortrait: portraitMode,
+          usePortrait: true,
           autoSize: false,
           showCover: false,
           drawShadow: false,
@@ -748,15 +792,15 @@ export default function PdfFlipReader({
     void openBook();
     return () => {
       cancelled = true;
-      renderTask?.cancel();
+      renderTasks.forEach((task) => task.cancel());
+      if (pageLoaderRef.current === loader) pageLoaderRef.current = null;
       if (flipRef.current === engine) flipRef.current = null;
       if (engine && engineLoaded) engine.destroy();
       clip.remove();
-      objectUrls.forEach((url) => URL.revokeObjectURL(url));
-      pageImageUrlsRef.current = {};
+      images.forEach(({ url }) => { if (url) URL.revokeObjectURL(url); });
       if (loadingTask) void loadingTask.destroy().catch(() => {});
     };
-  }, [fileUrl, bookId, contentId, retryCount, fitBookToStage]);
+  }, [fileUrl, bookId, contentId, cacheScope, retryCount, fitBookToStage]);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -776,12 +820,12 @@ export default function PdfFlipReader({
       };
       const ui = engine.getUI() as unknown as { removeHandlers?: () => void; setHandlers?: () => void };
       ui.removeHandlers?.();
-      settings.useMouseEvents = !annotationsOpen;
+      settings.useMouseEvents = !annotationsOpen && zoom <= 1;
       settings.showPageCorners = false;
       settings.disableFlipByClick = annotationsOpen;
       ui.setHandlers?.();
     }
-  }, [annotationsOpen, ready]);
+  }, [annotationsOpen, ready, zoom]);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -849,7 +893,7 @@ export default function PdfFlipReader({
         layer.appendChild(mark);
       }
     }
-  }, [annotations, pendingHighlight, preparedPages, selectedAnnotation?.id]);
+  }, [annotations, pendingHighlight, ready, selectedAnnotation?.id]);
 
   async function deleteAnnotation(id: string) {
     setHighlightContextMenu(null);
@@ -890,17 +934,43 @@ export default function PdfFlipReader({
 
   const visibleEnd = Math.min(totalPages, position.page + (position.landscape ? 1 : 0));
   const progressPercent = ready && totalPages > 0 ? Math.round((visibleEnd / totalPages) * 100) : 0;
-  const preparationPercent = totalPages > 0 ? Math.round((preparedPages / totalPages) * 100) : 0;
   const canGoBack = ready && !busy && position.page > 1;
   const canGoNext = ready && !busy && visibleEnd < totalPages;
 
-  const currentText = useMemo(() => {
-    const parts = [pageTextsRef.current[position.page] ?? ""];
-    if (visibleEnd > position.page) parts.push(pageTextsRef.current[visibleEnd] ?? "");
-    return parts.filter(Boolean).join("\n\n");
-  }, [position.page, visibleEnd, preparedPages, textRevision]);
+  useEffect(() => {
+    const loader = pageLoaderRef.current;
+    if (!loader || !ready || !pageWidth || busy) return;
+    const { show } = loader;
+    let active = true;
+    const first = Math.max(1, position.page - 2);
+    const last = Math.min(totalPages, visibleEnd + 2);
+    const width = rasterWidth(pageWidth, zoom);
+    loader.retain(first, last);
+
+    async function prepareVisiblePages() {
+      const render = (page: number, prefetch = false) => show(page, width, prefetch).catch(() => {
+        if (active && page >= position.page && page <= visibleEnd) {
+          setToolMessage("Не удалось загрузить страницу. Обновите книгу и попробуйте снова.");
+        }
+      });
+      await Promise.all(Array.from({ length: visibleEnd - position.page + 1 }, (_, i) => render(position.page + i)));
+      for (const page of [visibleEnd + 1, position.page - 1, visibleEnd + 2, position.page - 2]) {
+        if (!active) break;
+        if (page >= first && page <= last) await render(page, true);
+      }
+    }
+    const timer = window.setTimeout(() => void prepareVisiblePages(), 90);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [busy, pageWidth, position.page, ready, totalPages, visibleEnd, zoom]);
 
   const ensurePageText = useCallback(async (pageNumber: number) => {
+    const loader = pageLoaderRef.current;
+    if (!loader) return "";
+    await loader.readText(pageNumber).catch(() => {});
+    if (pageLoaderRef.current !== loader) return "";
     const existing = pageTextsRef.current[pageNumber]?.trim() ?? "";
     const wantsMathUpgrade = Boolean(
       existing
@@ -918,10 +988,7 @@ export default function PdfFlipReader({
       if (preferMath) mathOcrAttemptedRef.current.add(pageNumber);
 
       try {
-        const imageUrl = pageImageUrlsRef.current[pageNumber];
-        if (!imageUrl) return nativeText;
-        const imageResponse = await fetch(imageUrl);
-        const image = await imageResponse.blob();
+        const image = await loader.raster(pageNumber, OCR_IMAGE_WIDTH);
         const form = new FormData();
         form.set("image", new File([image], `page-${pageNumber}.png`, { type: image.type || "image/png" }));
         if (preferMath) form.set("preferMath", "1");
@@ -941,7 +1008,6 @@ export default function PdfFlipReader({
           : baseText;
         if (finalText !== pageTextsRef.current[pageNumber]) {
           pageTextsRef.current[pageNumber] = finalText;
-          setTextRevision((value) => value + 1);
         }
         return finalText;
       } catch (cause) {
@@ -982,7 +1048,7 @@ export default function PdfFlipReader({
       });
     }
     return output.join("\n\n");
-  }, [ensurePageText, position.landscape, position.page, totalPages, visibleEnd]);
+  }, [ensurePageText, position.page, totalPages]);
 
   function goToPage(requested: number) {
     if (!ready || !Number.isInteger(requested) || requested < 1 || requested > totalPages) return;
@@ -1165,39 +1231,37 @@ export default function PdfFlipReader({
   const noteRailCompression = aiOpen ? Math.max(0, aiRailWidth - 320) : 0;
   const leftRailSpace = notesListOpen ? Math.max(0, 226 - noteRailCompression) : 0;
 
-  const buttonClass = "rounded-full border border-white/10 px-5 py-2.5 text-sm font-medium text-white transition hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] disabled:cursor-not-allowed disabled:opacity-35";
+  const buttonClass = "rounded-full border border-[var(--surface-border)] px-5 py-2.5 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] disabled:cursor-not-allowed disabled:opacity-35";
 
   return (
-    <section ref={sectionRef} data-testid="pdf-reader-shell" data-reader-build={READER_BUILD} className={`reader-shell concept-panel mx-auto w-full min-w-0 max-w-[1680px] space-y-5 rounded-[32px] p-3 text-white sm:p-5 ${fullscreenActive ? "is-fullscreen" : ""}`}>
-      <header className="reader-shell-header flex flex-wrap items-end justify-between gap-4 border-b border-white/10 pb-5">
-        <div>
-          <p className="concept-eyebrow">Reading studio</p>
-          <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">
+    <section ref={sectionRef} data-testid="pdf-reader-shell" data-reader-build={READER_BUILD} className={`reader-shell concept-panel mx-auto w-full min-w-0 max-w-[1680px] space-y-3 rounded-[20px] p-2 text-[var(--text-primary)] sm:space-y-5 sm:rounded-[32px] sm:p-5 ${fullscreenActive ? "is-fullscreen" : ""}`}>
+      <header className="reader-shell-header flex flex-wrap items-end justify-between gap-2 border-b border-[var(--surface-border)] px-2 pb-3 sm:gap-4 sm:px-0 sm:pb-5">
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-[var(--text-secondary)] sm:text-sm">Reading studio</p>
+          <h1 className="mt-1 break-words text-xl font-semibold text-[var(--text-primary)] sm:mt-2 sm:text-3xl">
             <Link href={`/books/${slug}`} className="transition hover:text-[var(--accent-text)]">{title}</Link>
           </h1>
-          <p className="mt-2 text-xs text-[var(--text-muted)]">Нажмите на название, чтобы вернуться к карточке книги.</p>
+          <p className="mt-2 hidden text-xs text-[var(--text-muted)] sm:block">Нажмите на название, чтобы вернуться к карточке книги.</p>
         </div>
         <p aria-live="polite" className="text-sm text-[var(--text-secondary)]">
           {ready ? `Страница ${position.page}${visibleEnd > position.page ? `–${visibleEnd}` : ""} из ${totalPages} · ${progressPercent}%` : error ? "Ошибка загрузки" : "Подготовка книги..."}
         </p>
       </header>
 
-      <div role="progressbar" aria-label="Прогресс чтения" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent} className="reader-shell-progress h-1.5 overflow-hidden rounded-full bg-white/10">
+      <div role="progressbar" aria-label="Прогресс чтения" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent} className="reader-shell-progress h-1.5 overflow-hidden rounded-full bg-[var(--surface-3)]">
         <div className="h-full rounded-full bg-[var(--accent-strong)] transition-all duration-500" style={{ width: `${progressPercent}%` }} />
       </div>
 
       {!ready && !error ? (
-        <div className="mx-auto max-w-md space-y-3 py-8 text-center">
-          <p className="text-[var(--text-secondary)]">Подготовка чётких страниц...</p>
-          <p className="text-sm text-[var(--text-muted)]">{totalPages > 0 ? `${preparedPages} / ${totalPages}` : "Загрузка PDF..."}</p>
-          <div className="h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-[var(--accent-strong)] transition-all" style={{ width: `${preparationPercent}%` }} /></div>
+        <div role="status" className="mx-auto max-w-md py-3 text-center text-sm text-[var(--text-secondary)]">
+          Загрузка страницы…
         </div>
       ) : null}
 
       {error ? (
         <div role="alert" className="space-y-3 rounded-2xl border border-red-400/20 bg-red-500/10 p-5">
-          <p className="font-medium text-red-200">Не удалось открыть книгу</p>
-          <p className="break-words text-sm text-red-300">{error}</p>
+          <p className="font-medium text-[var(--danger-text)]">Не удалось открыть книгу</p>
+          <p className="break-words text-sm text-[var(--danger-text)]">{error}</p>
           <button type="button" className={buttonClass} onClick={() => { setError(""); setRetryCount((count) => count + 1); }}>Повторить</button>
         </div>
       ) : null}
@@ -1215,18 +1279,17 @@ export default function PdfFlipReader({
         }}
       >
       <div
-        className={`pdf3d-stage ${annotationsOpen ? "is-annotation-mode" : ""}`}
+        className={`pdf3d-stage ${annotationsOpen ? "is-annotation-mode" : ""} ${zoom > 1 ? "is-zoomed" : ""}`}
+        style={{ "--reader-zoom": zoom } as CSSProperties}
         tabIndex={ready ? 0 : -1}
-        aria-label={annotationsOpen ? "Режим Highlight + Note" : "Книга. Используйте стрелки влево и вправо."}
+        aria-label={annotationsOpen ? "Режим Highlight + Note" : zoom > 1 ? "Книга. Стрелки прокручивают увеличенную страницу." : "Книга. Используйте стрелки влево и вправо."}
         onKeyDown={(event) => {
-          if (annotationsOpen) return;
+          if (annotationsOpen || zoom > 1) return;
           if (event.key === "ArrowLeft") { event.preventDefault(); turnPage("previous"); }
           if (event.key === "ArrowRight") { event.preventDefault(); turnPage("next"); }
         }}
       >
-        <div className="pdf3d-zoom-layer" style={{ transform: `scale(${zoom})`, width: `${100 / zoom}%` }}>
-          <div ref={mountRef} className="pdf3d-mount" />
-        </div>
+        <div ref={mountRef} className="pdf3d-mount" />
       </div>
 
       <ReaderNotesRail
@@ -1256,7 +1319,7 @@ export default function PdfFlipReader({
         <button type="button" className={`${buttonClass} bg-[var(--accent-soft)]`} disabled={!canGoNext} onClick={() => turnPage("next")}>Вперёд →</button>
       </div>
 
-      {saveError ? <p role="status" className="reader-shell-status text-center text-sm text-amber-300">Не удалось сохранить прогресс чтения.</p> : null}
+      {saveError ? <p role="status" className="reader-shell-status text-center text-sm text-[var(--warning-text)]">Не удалось сохранить прогресс чтения.</p> : null}
       {toolMessage ? <p role="status" className="reader-shell-status text-center text-sm text-[var(--text-secondary)]">{toolMessage}</p> : null}
 
       <ReaderFloatingToolbar
@@ -1325,22 +1388,23 @@ export default function PdfFlipReader({
       ) : null}
 
       <style jsx global>{`
-        .pdf3d-stage { width:100%; min-width:0; height:min(78dvh,calc(100dvh - 155px)); min-height:420px; overflow:auto; border-radius:24px; background:radial-gradient(ellipse at 50% 20%,var(--accent-soft),transparent 66%),#020713; overscroll-behavior:contain; }
+        .pdf3d-stage { width:100%; min-width:0; height:min(78dvh,calc(100dvh - 155px)); min-height:420px; overflow:auto; border-radius:24px; background:radial-gradient(ellipse at 50% 20%,var(--accent-soft),transparent 66%),var(--surface-2); overscroll-behavior:contain; }
         .pdf3d-stage:focus-visible { outline:2px solid var(--accent-strong); outline-offset:4px; }
         .pdf3d-stage.is-annotation-mode { box-shadow: inset 0 0 0 2px var(--accent-border); }
-        .pdf3d-zoom-layer { transform-origin:top center; margin-inline:auto; transition:transform 180ms ease; }
-        .pdf3d-mount { width:100%; min-height:100%; padding:16px 0; display:flex; align-items:center; justify-content:center; }
-        .pdf3d-mount { position:relative; }
+        .pdf3d-mount { width:max-content; min-width:100%; min-height:100%; padding:12px; display:grid; place-items:center; position:relative; }
         .pdf3d-mount::before { content:""; position:absolute; left:50%; bottom:5%; width:min(72%,980px); height:34px; transform:translateX(-50%); border-radius:50%; background:rgba(0,0,0,.34); filter:blur(22px); pointer-events:none; }
-        .pdf3d-book-clip { position:relative; flex:0 0 auto; margin:0 auto; overflow:hidden; isolation:isolate; z-index:1; }
+        .pdf3d-book-clip { position:relative; width:calc(var(--book-width, 0px) * var(--reader-zoom, 1)); height:calc(var(--book-height, 0px) * var(--reader-zoom, 1)); overflow:hidden; isolation:isolate; z-index:1; }
         .pdf3d-book { visibility:hidden; margin:0; position:relative; z-index:1; }
+        .pdf3d-book-clip > .pdf3d-book { transform:scale(var(--reader-zoom, 1)); transform-origin:top left; }
+        .pdf3d-stage.is-zoomed .pdf3d-book { touch-action:pan-x pan-y; }
         /* Do not style StPageFlip private wrapper/item nodes. The library uses
            transformed overflow outside the host while composing a spread.
            Clipping those private nodes can make the whole book disappear. */
         .pdf3d-book .stf__outerShadow, .pdf3d-book .stf__innerShadow, .pdf3d-book .stf__hardShadow, .pdf3d-book .stf__hardInnerShadow { display:none !important; opacity:0 !important; }
         .pdf3d-sheet { position:relative; overflow:hidden; background:#fff; box-shadow:inset 0 0 12px rgba(0,0,0,.04); }
         .pdf3d-sheet img { display:block; width:100%; height:100%; object-fit:contain; background:#fff; user-select:none; pointer-events:none; -webkit-user-drag:none; }
-        .pdf3d-single { width:min(100%,700px); }
+        .pdf3d-sheet img[hidden] { display:none; }
+        .pdf3d-single .pdf3d-sheet { height:100%; }
         .pdf3d-single .pdf3d-sheet img { height:100%; object-fit:contain; }
         .reader-page-annotation-layer { position:absolute; inset:0; z-index:12; pointer-events:none; touch-action:none; }
         .reader-annotation-mode .reader-page-annotation-layer { pointer-events:auto; cursor:crosshair; }
@@ -1351,7 +1415,7 @@ export default function PdfFlipReader({
         .reader-saved-highlight.is-selected { outline:2px solid var(--accent-strong); outline-offset:2px; }
         .reader-direct-highlight--draft,.reader-pending-highlight { background:rgba(var(--accent-rgb),.26); border:2px solid var(--accent-strong); mix-blend-mode:multiply; }
         .reader-fullscreen-topbar { display:none; }
-        .reader-shell:fullscreen { width:100vw !important; max-width:none !important; height:100dvh; min-height:100dvh; margin:0; padding:14px 16px 16px !important; border:0; border-radius:0 !important; display:grid; grid-template-rows:48px minmax(0,1fr); gap:10px; overflow:hidden; background:#020713; }
+        .reader-shell:fullscreen { width:100vw !important; max-width:none !important; height:100dvh; min-height:100dvh; margin:0; padding:14px 16px 16px !important; border:0; border-radius:0 !important; display:grid; grid-template-rows:48px minmax(0,1fr); gap:10px; overflow:hidden; background:var(--surface-1); }
         .reader-shell:fullscreen > * { margin-top:0 !important; }
         .reader-shell:fullscreen .reader-shell-header,
         .reader-shell:fullscreen .reader-shell-progress,
@@ -1361,9 +1425,10 @@ export default function PdfFlipReader({
         .reader-fullscreen-title { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-primary); font-family:Georgia,serif; font-size:1.08rem; font-weight:700; }
         .reader-shell:fullscreen .reader-workspace { height:100%; min-height:0; border-radius:22px; }
         .reader-shell:fullscreen .pdf3d-stage { height:100%; min-height:0; border-radius:20px; overflow:auto; }
-        .reader-shell:fullscreen .pdf3d-zoom-layer { min-height:100%; display:flex; align-items:center; justify-content:center; }
-        .reader-shell:fullscreen .pdf3d-mount { height:100%; min-height:0; padding:10px 14px; }
-        @media(max-width:640px){.pdf3d-mount{padding:12px 0 20px;}}
+        @media(max-width:760px){
+          .pdf3d-stage { height:clamp(240px,min(calc((100vw - 60px) * var(--page-aspect, 1.414) + 28px),calc(100dvh - 158px)),740px); min-height:0; border-radius:14px; }
+          .reader-shell:fullscreen .reader-workspace { padding-bottom:calc(112px + env(safe-area-inset-bottom)); }
+        }
       `}</style>
     </section>
   );

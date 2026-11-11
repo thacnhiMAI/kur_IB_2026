@@ -65,6 +65,7 @@ export default async function ReadBookPage({
         fileUrl={`/api/reading/content/${content.id}`}
         bookId={book.id}
         contentId={content.id}
+        cacheScope={JSON.stringify([user.id, content.id, content.updatedAt?.toISOString()])}
         initialPage={progress?.lastPage || 1}
         isAuthenticated
       />

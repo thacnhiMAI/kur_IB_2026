@@ -2023,14 +2023,39 @@ html[data-theme="light"] .auth-shell .text-blue-100 { color: #1d4ed8 !important;
 .reader-ai-toast > svg { color:#4ade80; }
 .reader-ai-toast button { display:grid; width:28px; height:28px; place-items:center; border:0; border-radius:8px; background:var(--surface-3); color:var(--text-muted); }
 
-/* Toolbar now has Search in addition to Highlight/Notes/Fullscreen. */
-.reader-toolbar-actions { grid-template-columns:minmax(0,1fr) minmax(0,1fr) 40px 40px 40px 40px; }
+/* Read aloud, AI, highlights, notes, search and fullscreen. */
+.reader-toolbar-actions { grid-template-columns:40px minmax(0,1fr) repeat(4, 40px); }
+.reader-toolbar-actions .reader-mobile-collapse { display:none; }
 .reader-floating-toolbar { width:min(500px, calc(100vw - 16px)); }
 
-@media (max-width: 600px) {
-  .reader-toolbar-actions { grid-template-columns:minmax(0,1fr) minmax(0,1fr) repeat(4, 36px); gap:4px; }
-  .reader-tool-button--square { width:36px; height:36px; flex-basis:36px; }
-  .reader-floating-toolbar { width:min(470px, calc(100vw - 8px)); }
+@media (max-width: 760px) {
+  .dashboard-app:has(.reader-shell) .dashboard-header { position:relative; }
+  .dashboard-app:has(.reader-shell) .dashboard-sidebar { position:static; }
+  .dashboard-main:has(.reader-shell) { padding:8px 8px calc(124px + env(safe-area-inset-bottom)); }
+  .reader-floating-toolbar {
+    top:auto !important;
+    right:8px;
+    bottom:calc(8px + env(safe-area-inset-bottom));
+    left:8px !important;
+    width:auto;
+    max-width:none !important;
+    max-height:calc(100dvh - 24px);
+    overflow-y:auto;
+  }
+  .reader-floating-toolbar .reader-drag-handle { display:none; }
+  .reader-floating-toolbar[data-expanded="true"] .reader-toolbar-topline { display:none; }
+  .reader-toolbar-actions .reader-mobile-collapse { display:inline-flex; }
+  .reader-ai-rail { bottom:calc(116px + env(safe-area-inset-bottom)); }
+  body:has(.reader-floating-toolbar[data-expanded="false"]) .reader-ai-rail { bottom:calc(64px + env(safe-area-inset-bottom)); }
+  .reader-toolbar-topline, .reader-toolbar-expanded { padding:6px; }
+  .reader-toolbar-mainrow { grid-template-columns:36px minmax(58px,1fr) 36px 1px 36px 52px 36px; gap:4px; }
+  .reader-page-counter { min-width:0; gap:3px; }
+  .reader-page-input { width:31px !important; min-width:31px !important; max-width:31px !important; flex-basis:31px; font-size:1rem; }
+  .reader-page-total { font-size:.65rem; }
+  .reader-zoom-value { width:52px; }
+  .reader-toolbar-actions { grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px; }
+  .reader-tool-button--square { width:36px; height:42px; flex-basis:36px; }
+  .reader-toolbar-actions .reader-tool-button { width:100%; height:44px; gap:3px; }
 }
 
 /* Reading companion: vector art responds to clicks, focus, theme and motion. */

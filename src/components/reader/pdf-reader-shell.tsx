@@ -9,6 +9,7 @@ export type PdfReaderShellProps = {
   fileUrl: string;
   bookId: string;
   contentId: string | null;
+  cacheScope?: string;
   initialPage?: number;
   isAuthenticated: boolean;
 };
@@ -25,7 +26,7 @@ const PdfFlipReader = dynamic(() => import("./pdf-flip-reader"), {
 export function PdfReaderShell(props: PdfReaderShellProps) {
   return (
     <PdfFlipReader
-      key={`${props.bookId}:${props.contentId ?? ""}:${props.fileUrl}`}
+      key={`${props.bookId}:${props.contentId ?? ""}:${props.cacheScope ?? ""}:${props.fileUrl}`}
       {...props}
     />
   );
