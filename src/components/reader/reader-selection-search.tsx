@@ -115,6 +115,7 @@ export function ReaderSelectionSearch({ anchor, getImage, getText, onClose }: {
               }
             }}>
             <input ref={lensFileInput} type="file" name="encoded_image" hidden />
+            {query.trim() ? <input type="hidden" name="q" value={query.trim()} /> : null}
             <button type="submit" className="reader-selection-search-lens">Google Lens</button>
             {lensError ? <p role="alert">{lensError}</p> : null}
           </form>
