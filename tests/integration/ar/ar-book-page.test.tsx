@@ -119,7 +119,7 @@ describe("ARBookPage", () => {
     await waitFor(() => {
       expect(decideARPreviewMode).toHaveBeenCalled();
     });
-    expect(screen.getByRole("link", { name: "Читать" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Читать PDF" })).toHaveAttribute(
       "href",
       "/read/books/design-of-everyday-things"
     );

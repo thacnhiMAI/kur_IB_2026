@@ -90,7 +90,7 @@ export function DashboardSidebar() {
         {collapsed ? <Book size={20} /> : <BookOpen size={20} />}
       </button>
 
-      {!collapsed && <ReadingCat />}
+      <ReadingCat />
 
       <nav className="dashboard-sidebar-nav">
         {items.map((item) => {

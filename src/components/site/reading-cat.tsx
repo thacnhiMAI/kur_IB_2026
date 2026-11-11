@@ -27,9 +27,15 @@ export function ReadingCat() {
           <path d="M75 42 L81 42 L78 46 Z" fill="#b77778" /><path d="M78 46 Q74 51 70 47 M78 46 Q82 51 86 47" fill="none" stroke="#8f6452" strokeWidth="1.5" />
         </g>
         <path d="M39 59 Q57 54 77 64 Q97 54 117 59 L115 84 Q95 78 77 86 Q58 78 41 84 Z" fill="var(--accent-strong)" />
-        <path className="cat-page" d="M44 59 Q60 57 77 66 Q96 57 112 59 L110 78 Q94 74 77 83 Q61 74 45 78 Z" fill="#fff6e8" />
-        <path d="M77 66 V82 M51 65 L68 69 M51 70 L67 74 M86 69 L104 65 M86 74 L104 70" fill="none" stroke="#c9bca9" strokeWidth="1.5" />
-        <ellipse cx="43" cy="70" rx="7" ry="5" fill="#f7ca9c" /><ellipse cx="113" cy="70" rx="7" ry="5" fill="#f7ca9c" />
+        <path d="M44 59 Q60 57 77 66 Q96 57 112 59 L110 78 Q94 74 77 83 Q61 74 45 78 Z" fill="#fff6e8" />
+        <path d="M77 66 V82" stroke="#c9bca9" strokeWidth="1.5" />
+        <path className="cat-left-lines" d="M51 65 L68 69 M51 70 L67 74" fill="none" stroke="#c9bca9" strokeWidth="1.5" />
+        <g className="cat-page">
+          <path d="M77 66 Q96 57 112 59 L110 78 Q94 74 77 83 Z" fill="#fff6e8" />
+          <path d="M86 69 L104 65 M86 74 L104 70" fill="none" stroke="#c9bca9" strokeWidth="1.5" />
+        </g>
+        <ellipse className="cat-paw-left" cx="43" cy="70" rx="7" ry="5" fill="#f7ca9c" />
+        <ellipse className="cat-paw-right" cx="113" cy="70" rx="7" ry="5" fill="#f7ca9c" />
       </svg>
     </button>
   );

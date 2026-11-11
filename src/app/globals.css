@@ -2048,9 +2048,7 @@ html[data-theme="light"] .auth-shell .text-blue-100 { color: #1d4ed8 !important;
 .reader-selection-actions button { display:block; color:var(--text-primary); }
 .reader-selection-actions button:hover, .reader-selection-actions button:focus-visible { background:var(--accent-soft); }
 .reader-selection-search { position:fixed; z-index:135; width:340px; max-width:calc(100vw - 16px); max-height:calc(100dvh - 16px); overflow:auto; border:1px solid var(--accent-border); border-radius:14px; background:var(--surface-1); color:var(--text-primary); box-shadow:0 14px 40px #0005; }
-.reader-selection-resize { position:absolute; top:6px; display:grid; place-items:center; width:16px; height:40px; cursor:ew-resize; touch-action:none; }
-.reader-selection-resize--left { left:0; }
-.reader-selection-resize--right { right:0; }
+.reader-selection-resize { position:absolute; top:6px; right:0; display:grid; place-items:center; width:16px; height:40px; cursor:ew-resize; touch-action:none; }
 .reader-selection-resize::after { content:""; width:3px; height:24px; border-radius:99px; background:var(--text-secondary); opacity:.55; }
 .reader-selection-resize:hover::after, .reader-selection-resize:focus-visible::after { opacity:1; }
 .reader-selection-search header { display:flex; align-items:center; justify-content:space-between; padding:6px 16px; border-bottom:1px solid var(--accent-border); }
@@ -2134,18 +2132,34 @@ html[data-theme="light"] .auth-shell .text-blue-100 { color: #1d4ed8 !important;
 .cat-tail { transform-origin: 128px 67px; animation: cat-tail 4s ease-in-out infinite; }
 .cat-eyes { transform-origin: 75px 36px; animation: cat-blink 6s infinite; }
 .reading-cat[data-playing="true"] .cat-head { animation: cat-nod .45s ease-in-out 3; transform-origin: 75px 52px; }
-.reading-cat[data-playing="true"] .cat-page { animation: cat-page .65s ease-in-out 2; transform-origin: 77px 66px; }
+.reading-cat[data-playing="true"] .cat-page { animation: cat-page .8s ease-in-out 2; transform-origin: 77px 66px; }
+.reading-cat[data-playing="true"] .cat-paw-right { animation: cat-turn-paw .8s ease-in-out 2; }
+.reading-cat[data-playing="true"] .cat-paw-left { animation: cat-hold-paw .8s ease-in-out 2; }
+.reading-cat[data-playing="true"] .cat-left-lines { animation: cat-left-lines .8s ease-in-out 2; }
 @keyframes cat-tail { 50% { transform: rotate(-8deg); } }
 @keyframes cat-blink { 0%,44%,48%,100% { transform: scaleY(1); } 46% { transform: scaleY(.08); } }
 @keyframes cat-nod { 50% { transform: rotate(-5deg) translateY(2px); } }
-@keyframes cat-page { 50% { transform: scaleX(.15); } }
+@keyframes cat-page { 45% { transform: scaleX(.08) skewY(-12deg); } 65% { transform: scaleX(-.85); } }
+@keyframes cat-turn-paw { 45% { transform: translate(-28px, -12px); } 65% { transform: translate(-37px, -5px); } }
+@keyframes cat-hold-paw { 55% { transform: translate(4px, 2px); } }
+@keyframes cat-left-lines { 65% { transform: translate(-2px, 1px); opacity:.3; } }
 @media (prefers-reduced-motion: reduce) { .reading-cat svg * { animation: none !important; } }
 html[data-motion="reduced"] .reading-cat svg * { animation: none !important; }
 @media (min-width: 1024px) {
  .auth-visual-panel { min-height: max(820px, 86vh); }
 }
 
-@media (max-width: 1020px) { .reading-cat { display: none; } }
+@media (max-width: 1020px) {
+  .reading-cat { width:100%; height:48px; margin:0 0 10px; }
+}
+html[data-sidebar-collapsed="true"] .reading-cat { width:100%; height:48px; margin:0 0 10px; }
+@media (max-width: 760px) {
+  .dashboard-sidebar { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; }
+  .dashboard-sidebar .dashboard-sidebar-toggle { grid-column:2; grid-row:1; margin:0; }
+  .dashboard-sidebar .reading-cat,
+  html[data-sidebar-collapsed="true"] .dashboard-sidebar .reading-cat { grid-column:1; grid-row:1; width:72px; height:43px; margin:0; }
+  .dashboard-sidebar .dashboard-sidebar-nav { grid-column:1 / -1; }
+}
 
 :root { --danger-text: #fb7185; --success-text: #6ee7b7; --warning-text: #fcd34d; }
 html[data-theme="light"] { --danger-text: #be123c; --success-text: #047857; --warning-text: #92400e; }

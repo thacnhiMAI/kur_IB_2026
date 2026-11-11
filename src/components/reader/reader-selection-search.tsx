@@ -70,19 +70,17 @@ export function ReaderSelectionSearch({ anchor, getImage, getText, onClose }: {
     };
   }
 
-  function resizeWidth(nextWidth: number, left: number, right?: number) {
-    const available = right === undefined ? document.documentElement.clientWidth - 8 - left : right - 8;
-    const bounded = Math.min(available, Math.max(280, nextWidth));
-    setWidth(bounded);
-    if (right !== undefined) setPosition((current) => ({ ...current, x: right - bounded }));
+  function resizeWidth(nextWidth: number, left: number) {
+    const available = document.documentElement.clientWidth - 8 - left;
+    setWidth(Math.min(available, Math.max(280, nextWidth)));
   }
 
-  function resizeHandle(edge: "left" | "right") {
+  function resizeHandle() {
     return (
       <button
         type="button"
-        className={`reader-selection-resize reader-selection-resize--${edge}`}
-        aria-label={edge === "left" ? "Изменить ширину окна за левый край" : "Изменить ширину окна за правый край"}
+        className="reader-selection-resize"
+        aria-label="Изменить ширину окна за правый край"
         onPointerDown={(event: PointerEvent<HTMLButtonElement>) => {
           const panel = box.current;
           if (event.button !== 0 || !panel) return;
@@ -93,17 +91,14 @@ export function ReaderSelectionSearch({ anchor, getImage, getText, onClose }: {
           const start = resize.current;
           if (start?.pointerId !== event.pointerId) return;
           const delta = event.clientX - start.x;
-          const right = edge === "left" ? start.left + start.width : undefined;
-          resizeWidth(start.width + (edge === "left" ? -delta : delta), start.left, right);
+          resizeWidth(start.width + delta, start.left);
         }}
         onLostPointerCapture={() => { resize.current = null; }}
         onKeyDown={(event) => {
           const panel = box.current;
           if (!panel || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
           event.preventDefault();
-          const expand = event.key === (edge === "left" ? "ArrowLeft" : "ArrowRight");
-          const right = edge === "left" ? position.x + panel.offsetWidth : undefined;
-          resizeWidth(panel.offsetWidth + (expand ? 24 : -24), position.x, right);
+          resizeWidth(panel.offsetWidth + (event.key === "ArrowRight" ? 24 : -24), position.x);
         }}
       />
     );
@@ -112,6 +107,10 @@ export function ReaderSelectionSearch({ anchor, getImage, getText, onClose }: {
   useLayoutEffect(() => {
     const node = box.current;
     if (!node) return;
+    const viewportWidth = document.documentElement.clientWidth;
+    if (viewportWidth >= 600) {
+      setPosition((current) => ({ ...current, x: Math.min(current.x, viewportWidth - node.offsetWidth - 120) }));
+    }
     const fit = () => setPosition((current) => {
       const next = clamp(current);
       return next.x === current.x && next.y === current.y ? current : next;
@@ -159,8 +158,7 @@ export function ReaderSelectionSearch({ anchor, getImage, getText, onClose }: {
   return (
     <section ref={box} className="reader-selection-search" role="dialog" aria-label="Поиск и перевод" style={{ left: position.x, top: position.y, width }}
       onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); onClose(); } }}>
-      {resizeHandle("left")}
-      {resizeHandle("right")}
+      {resizeHandle()}
       <header>
         <div className="reader-selection-search-grip" onPointerDown={(event) => {
           if (event.button !== 0) return;

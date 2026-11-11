@@ -30,22 +30,27 @@ export default async function ARBookPage({ params }: { params: Promise<{ slug: s
               <p className="concept-kicker">3D / AR studio</p>
               <h1 className="text-3xl font-semibold text-[var(--text-primary)]">{book.title}</h1>
               <p className="max-w-3xl text-sm leading-7 text-[var(--text-secondary)]">
-                3D Reader показывает реальные страницы внутреннего PDF. AR через камеру включается только когда браузер и устройство поддерживают WebXR immersive-ar.
+                В AR через камеру видны обложка и описание. На совместимом телефоне AR-очки не нужны.
               </p>
+              {book.readingMode === "internal" ? (
+                <p className="max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">
+                  Чтобы читать страницы, выйдите из режима камеры и нажмите «Читать PDF».
+                </p>
+              ) : null}
             </div>
             <div className="flex flex-wrap gap-3">
-              <Link href={`/books/${book.slug}`} className="concept-button-secondary inline-flex rounded-full px-5 py-3 text-sm font-medium">
-                Вернуться к книге
-              </Link>
               {book.readHref && book.readLabel ? (
                 <Link href={book.readHref} className="concept-button-primary inline-flex rounded-full px-5 py-3 text-sm font-semibold">
-                  {book.readLabel}
+                  {book.readingMode === "internal" ? "Читать PDF" : book.readLabel}
                 </Link>
               ) : (
                 <div className="rounded-full border border-amber-400/30 bg-amber-400/10 px-5 py-3 text-sm text-amber-200">
                   Внутренний PDF не добавлен
                 </div>
               )}
+              <Link href={`/books/${book.slug}`} className="concept-button-secondary inline-flex rounded-full px-5 py-3 text-sm font-medium">
+                Вернуться к книге
+              </Link>
             </div>
           </div>
         </section>
