@@ -2024,9 +2024,9 @@ html[data-theme="light"] .auth-shell .text-blue-100 { color: #1d4ed8 !important;
 .reader-ai-toast button { display:grid; width:28px; height:28px; place-items:center; border:0; border-radius:8px; background:var(--surface-3); color:var(--text-muted); }
 
 /* Read aloud, AI, highlights, notes, search and fullscreen. */
-.reader-toolbar-actions { grid-template-columns:40px minmax(0,1fr) repeat(4, 40px); }
+.reader-toolbar-actions { grid-template-columns:repeat(6, 40px); justify-content:space-between; }
 .reader-toolbar-actions .reader-mobile-collapse { display:none; }
-.reader-floating-toolbar { width:min(500px, calc(100vw - 16px)); }
+.reader-floating-toolbar { width:min(360px, calc(100vw - 16px)); }
 
 @media (max-width: 760px) {
   .dashboard-app:has(.reader-shell) .dashboard-header { position:relative; }

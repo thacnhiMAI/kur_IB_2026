@@ -72,7 +72,7 @@ type DragState = {
 };
 
 const POSITION_KEY = "smart-library:reader-toolbar-position:v6";
-const DEFAULT_TOOLBAR_WIDTH = 500;
+const DEFAULT_TOOLBAR_WIDTH = 360;
 const EDGE_GAP = 12;
 
 function clamp(value: number, min: number, max: number) {
@@ -515,13 +515,14 @@ export function ReaderFloatingToolbar(props: ReaderFloatingToolbarProps) {
 
             <button
               type="button"
-              className={`reader-tool-button reader-tool-button--wide ${props.aiOpen ? "reader-tool-button--active" : ""}`}
+              className={`${compactIconButton} ${props.aiOpen ? "reader-tool-button--active" : ""}`}
               onClick={props.onToggleAi}
               disabled={!props.aiEnabled}
               title={props.aiEnabled ? "AI-помощник" : "AI отключён в Настройках"}
+              aria-label="AI-помощник"
+              aria-pressed={props.aiOpen}
             >
               <Sparkles size={19} fill="currentColor" />
-              <span>AI</span>
             </button>
 
             <button
