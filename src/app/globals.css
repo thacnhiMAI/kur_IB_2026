@@ -2056,6 +2056,9 @@ html[data-theme="light"] .auth-shell .text-blue-100 { color: #1d4ed8 !important;
 .reader-selection-translation-languages label { display:grid; gap:3px; min-width:0; }
 .reader-selection-translation-languages select, .reader-selection-translation-languages button { width:100%; min-width:0; height:36px; padding:4px; border:1px solid var(--accent-border); border-radius:8px; color:var(--text-primary); background:var(--surface-2); }
 .reader-selection-translation-languages button { display:grid; place-items:center; }
+.reader-selection-translate-button { justify-self:start; min-height:36px; padding:4px 12px; border-radius:8px; color:var(--accent-contrast); background:var(--accent-strong); }
+.reader-selection-translate-button:disabled { opacity:.55; }
+.reader-selection-translation-result { display:grid; gap:4px; min-width:0; }
 .reader-selection-search-grip { flex:1; display:flex; align-items:center; gap:8px; min-height:40px; cursor:grab; touch-action:none; user-select:none; }
 .reader-selection-search-grip:active { cursor:grabbing; }
 .reader-selection-search-body { display:grid; gap:8px; padding:10px; font-size:.86rem; }

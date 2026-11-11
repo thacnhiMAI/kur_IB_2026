@@ -3,20 +3,9 @@
 import { ArrowLeftRight, Grip, X } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { translationLanguages, translationTextLimit } from "@/lib/reading/translation";
 
 type Point = { x: number; y: number };
-const translationLanguages = {
-  ru: "Русский",
-  en: "Английский",
-  vi: "Вьетнамский",
-  de: "Немецкий",
-  es: "Испанский",
-  fr: "Французский",
-  zh: "Китайский (упрощённый)",
-  ja: "Японский",
-  ko: "Корейский",
-  ar: "Арабский"
-};
 
 export function ReaderSelectionSearch({ anchor, getImage, getText, onClose }: {
   anchor: Point;
@@ -35,10 +24,41 @@ export function ReaderSelectionSearch({ anchor, getImage, getText, onClose }: {
   const [lensError, setLensError] = useState("");
   const [translationOpen, setTranslationOpen] = useState(false);
   const [languages, setLanguages] = useState({ source: "en", target: "ru" });
+  const [translation, setTranslation] = useState<{ input: string; value?: string; error?: string } | null>(null);
+  const [translating, setTranslating] = useState(false);
+  const translationRequest = useRef<AbortController | null>(null);
   const text = query.trim();
-  const translationUrl = `https://translate.google.com/?${new URLSearchParams({
-    sl: languages.source, tl: languages.target, text, op: "translate", hl: "ru"
-  })}`;
+  const translationInput = JSON.stringify({ ...languages, text });
+  const result = translation?.input === translationInput ? translation : null;
+
+  useEffect(() => () => translationRequest.current?.abort(), []);
+
+  async function translate() {
+    if (!text || translationRequest.current) return;
+    const controller = new AbortController();
+    translationRequest.current = controller;
+    setTranslation(null);
+    setTranslating(true);
+    const fallback = "Перевод временно недоступен. Попробуйте ещё раз.";
+    try {
+      const response = await fetch("/api/reader-translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: translationInput,
+        signal: controller.signal
+      });
+      const payload = await response.json() as { translation?: string; error?: string };
+      if (!response.ok || !payload.translation) throw new Error(payload.error ?? fallback);
+      setTranslation({ input: translationInput, value: payload.translation });
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        setTranslation({ input: translationInput, error: error instanceof Error ? error.message : fallback });
+      }
+    } finally {
+      translationRequest.current = null;
+      if (!controller.signal.aborted) setTranslating(false);
+    }
+  }
 
   function clamp({ x, y }: Point) {
     const { clientWidth, clientHeight } = document.documentElement;
@@ -72,7 +92,7 @@ export function ReaderSelectionSearch({ anchor, getImage, getText, onClose }: {
         url = URL.createObjectURL(file);
         setImage({ url, file });
         if (nativeText) {
-          setQuery((current) => current || nativeText.slice(0, 800));
+          setQuery((current) => current || nativeText.slice(0, translationTextLimit));
           return;
         }
         const form = new FormData();
@@ -82,7 +102,7 @@ export function ReaderSelectionSearch({ anchor, getImage, getText, onClose }: {
         if (controller.signal.aborted) return;
         const text = (result.text ?? "").trim();
         if (response.ok && /[\p{L}\p{N}]{2}/u.test(text) && !/�|\[(?:неразборчиво|illegible|unreadable)\]/iu.test(text)) {
-          setQuery((current) => current || text.slice(0, 800));
+          setQuery((current) => current || text.slice(0, translationTextLimit));
         } else {
           setError("Текст не распознан уверенно. Используйте Google Lens или введите запрос.");
         }
@@ -114,7 +134,7 @@ export function ReaderSelectionSearch({ anchor, getImage, getText, onClose }: {
       </header>
       <div className="reader-selection-search-body">
         {image ? <Image src={image.url} alt="Выделенная область PDF" width={300} height={120} unoptimized /> : null}
-        <textarea aria-label={translationOpen ? "Текст для перевода" : "Поисковый запрос"} rows={3} maxLength={800} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={translationOpen ? "Введите или исправьте текст для перевода…" : "Введите или исправьте текст для поиска…"} />
+        <textarea aria-label={translationOpen ? "Текст для перевода" : "Поисковый запрос"} rows={3} maxLength={translationTextLimit} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={translationOpen ? "Введите или исправьте текст для перевода…" : "Введите или исправьте текст для поиска…"} />
         <p role="status">{loading ? "Распознаём выделенный фрагмент…" : translationOpen ? "Проверьте текст и выберите языки перевода." : error || "Проверьте распознанный текст перед поиском."}</p>
         {translationOpen ? (
           <>
@@ -137,7 +157,13 @@ export function ReaderSelectionSearch({ anchor, getImage, getText, onClose }: {
                 </select>
               </label>
             </div>
-            {text ? <a href={translationUrl} target="_blank" rel="noopener noreferrer">Перевести в Google</a> : null}
+            <button type="button" className="reader-selection-translate-button" disabled={!text || translating} onClick={() => void translate()}>
+              {translating ? "Переводим…" : "Перевести"}
+            </button>
+            {result?.value ? <label className="reader-selection-translation-result">Результат перевода
+              <textarea readOnly rows={4} value={result.value} />
+            </label> : null}
+            {result?.error ? <p role="alert">{result.error}</p> : null}
           </>
         ) : null}
         {!translationOpen && text ? <a href={`https://www.google.com/search?q=${encodeURIComponent(text)}`} target="_blank" rel="noopener noreferrer">Поиск в Google</a> : null}
