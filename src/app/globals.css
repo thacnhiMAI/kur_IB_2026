@@ -1951,9 +1951,13 @@ html[data-theme="light"] .auth-shell .text-blue-100 { color: #1d4ed8 !important;
 .reader-ai-quick-actions { display:flex; flex-wrap:wrap; gap:6px; border-top:1px solid var(--surface-border); padding:8px 10px 0; }
 .reader-ai-quick-actions button { border:1px solid var(--surface-border); border-radius:999px; background:var(--surface-3); padding:5px 8px; color:var(--text-secondary); font-size:.65rem; }
 .reader-ai-error { margin:6px 10px 0; color:#fda4af; font-size:.68rem; }
-.reader-ai-composer { display:grid; grid-template-columns:minmax(0,1fr) 34px; gap:7px; padding:8px 10px 10px; }
-.reader-ai-composer textarea { resize:none; border:1px solid var(--surface-border); border-radius:10px; background:var(--surface-3); padding:8px 9px; color:var(--text-primary); outline:none; font-size:.72rem; }
-.reader-ai-composer button { display:grid; place-items:center; border:0; border-radius:10px; background:var(--accent-strong); color:var(--accent-contrast); }
+.reader-ai-chat { container-type:size; }
+.reader-ai-composer-grip { display:grid; flex:none; place-items:center; width:100%; height:24px; cursor:ns-resize; touch-action:none; }
+.reader-ai-composer-grip::after { content:""; width:36px; height:4px; border-radius:99px; background:var(--text-secondary); opacity:.55; }
+.reader-ai-composer-grip:hover::after, .reader-ai-composer-grip:focus-visible::after { opacity:1; }
+.reader-ai-composer { display:grid; flex:none; grid-template-columns:minmax(0,1fr) 34px; gap:7px; padding:0 10px 10px; }
+.reader-ai-composer textarea { resize:none; max-height:max(42px, 50cqh); border:1px solid var(--surface-border); border-radius:10px; background:var(--surface-3); padding:8px 9px; color:var(--text-primary); outline:none; font-size:.72rem; }
+.reader-ai-composer button { display:grid; place-items:center; align-self:end; height:42px; border:0; border-radius:10px; background:var(--accent-strong); color:var(--accent-contrast); }
 
 /* Smaller v11 toolbar with dedicated note-list button. */
 .reader-floating-toolbar { width:min(455px, calc(100vw - 16px)); border-radius:22px; }

@@ -116,6 +116,8 @@ export function ReaderAiPanel({
   const [preview, setPreview] = useState<string | null>(null);
   const [now, setNow] = useState(0);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const [composerHeight, setComposerHeight] = useState(48);
+  const composerDrag = useRef<{ pointerId: number; startY: number; height: number } | null>(null);
   const [illustration, setIllustration] = useState<{ conversationId: string; src: string } | null>(null);
   const [error, setError] = useState("");
   const [width, setWidth] = useState(340);
@@ -395,6 +397,13 @@ export function ReaderAiPanel({
     try { window.localStorage.setItem(WIDTH_KEY, String(width)); } catch { /* ignore */ }
   }
 
+  function resizeComposer(height: number) {
+    const chat = composerRef.current?.closest<HTMLElement>(".reader-ai-chat");
+    if (!chat) return;
+    const maxHeight = Math.max(42, Math.min(420, chat.clientHeight * 0.5));
+    setComposerHeight(Math.round(Math.min(maxHeight, Math.max(42, height))));
+  }
+
   const toastStack = (
     <div className="reader-ai-toast-stack" aria-live="polite">
       {toasts.map((toast) => (
@@ -474,8 +483,29 @@ export function ReaderAiPanel({
                 <button type="button" aria-label="Убрать вложение" onClick={() => setAttachments((current) => ({ ...current, [active.id]: undefined }))}><X size={15} /></button>
               </div>
             ) : null}
+            <button
+              type="button"
+              className="reader-ai-composer-grip"
+              aria-label="Изменить высоту поля ввода (стрелки вверх и вниз)"
+              title="Потяните, чтобы изменить высоту поля ввода"
+              onPointerDown={(event) => {
+                if (event.button !== 0 || !composerRef.current) return;
+                event.currentTarget.setPointerCapture(event.pointerId);
+                composerDrag.current = { pointerId: event.pointerId, startY: event.clientY, height: composerRef.current.offsetHeight };
+              }}
+              onPointerMove={(event) => {
+                const drag = composerDrag.current;
+                if (drag?.pointerId === event.pointerId) resizeComposer(drag.height + drag.startY - event.clientY);
+              }}
+              onLostPointerCapture={() => { composerDrag.current = null; }}
+              onKeyDown={(event) => {
+                if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+                event.preventDefault();
+                resizeComposer((composerRef.current?.offsetHeight ?? composerHeight) + (event.key === "ArrowUp" ? 20 : -20));
+              }}
+            />
             <div className="reader-ai-composer">
-              <textarea ref={composerRef} aria-label="Сообщение AI Reader" value={question} onChange={(event) => {
+              <textarea ref={composerRef} style={{ height: composerHeight }} aria-label="Сообщение AI Reader" value={question} onChange={(event) => {
                 const value = event.target.value;
                 setQuestions((current) => ({ ...current, [active.id]: value }));
               }} rows={2} maxLength={2000} placeholder="Вопрос или #create_immage…" onKeyDown={(event) => {
