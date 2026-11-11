@@ -9,9 +9,7 @@ const { getBookDetailPageData } = vi.hoisted(() => ({
 const { decideARPreviewMode } = vi.hoisted(() => ({
   decideARPreviewMode: vi.fn()
 }));
-const attachBookScene = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const attachReaderScene = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
-vi.mock("@/components/ar/webxr-scene", () => ({ attachBookScene }));
 vi.mock("@/components/ar/webxr-reader-scene", () => ({ attachReaderScene }));
 
 const { notFound } = vi.hoisted(() => ({
@@ -198,11 +196,11 @@ describe("ARBookPage", () => {
       params: Promise.resolve({ slug: BOOK_DETAIL_FIXTURE.slug })
     }));
     fireEvent.click(await screen.findByRole("button", { name: "Start AR" }));
-    await waitFor(() => expect(attachBookScene).toHaveBeenCalledWith(session, expect.objectContaining({
+    await waitFor(() => expect(attachReaderScene).toHaveBeenCalledWith(session, null, expect.objectContaining({
       coverImage: BOOK_DETAIL_FIXTURE.coverImage,
       description: BOOK_DETAIL_FIXTURE.description
-    })));
-    expect(requestSession).toHaveBeenCalledWith("immersive-ar");
+    }), "preview"));
+    expect(requestSession).toHaveBeenCalledWith("immersive-ar", { optionalFeatures: ["hand-tracking"] });
     await screen.findByText(/AR session is active/);
     unmount();
     expect(end).toHaveBeenCalledOnce();
@@ -220,7 +218,7 @@ describe("ARBookPage", () => {
     });
     render(await ARBookPage({ params: Promise.resolve({ slug: BOOK_DETAIL_FIXTURE.slug }) }));
     fireEvent.click(await screen.findByRole("button", { name: "Читать PDF в AR" }));
-    await waitFor(() => expect(attachReaderScene).toHaveBeenCalledWith(session, "/api/reading/content/content-1"));
+    await waitFor(() => expect(attachReaderScene).toHaveBeenCalledWith(session, "/api/reading/content/content-1", expect.objectContaining({ title: BOOK_DETAIL_FIXTURE.title }), "reader"));
     expect(requestSession).toHaveBeenCalledWith("immersive-ar", { optionalFeatures: ["hand-tracking"] });
   });
 

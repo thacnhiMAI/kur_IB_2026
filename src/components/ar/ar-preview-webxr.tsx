@@ -61,24 +61,16 @@ export function ARPreviewWebXR({
 
       setStatus(`Starting AR session for "${book.title}"...`);
 
-      const nextSession = mode === "reader"
-        ? await xr.requestSession("immersive-ar", { optionalFeatures: ["hand-tracking"] })
-        : await xr.requestSession("immersive-ar");
+      const nextSession = await xr.requestSession("immersive-ar", { optionalFeatures: ["hand-tracking"] });
       if (!mounted.current) {
         await nextSession.end();
         return;
       }
       sessionRef.current = nextSession;
       nextSession.addEventListener("end", handleSessionEnd, { once: true });
-      if (mode === "reader" && pdfUrl) {
-        const { attachReaderScene } = await import("./webxr-reader-scene");
-        if (sessionRef.current !== nextSession) return;
-        await attachReaderScene(nextSession, pdfUrl);
-      } else {
-        const { attachBookScene } = await import("./webxr-scene");
-        if (sessionRef.current !== nextSession) return;
-        await attachBookScene(nextSession, book);
-      }
+      const { attachReaderScene } = await import("./webxr-reader-scene");
+      if (sessionRef.current !== nextSession) return;
+      await attachReaderScene(nextSession, pdfUrl, book, mode);
       if (sessionRef.current !== nextSession) return;
 
       setStatus(`AR session is active for "${book.title}".`);
@@ -133,11 +125,9 @@ export function ARPreviewWebXR({
             {isStarting ? "Starting AR..." : "Start AR"}
           </button>
         </div>
-        {pdfUrl ? (
-          <p className="text-sm text-slate-300">
-            Чтобы листать PDF, выберите стрелку под страницей. На телефоне коснитесь её. В гарнитуре с отслеживанием рук наведите указатель на стрелку и сведите большой и указательный пальцы.
-          </p>
-        ) : null}
+        <p className="text-sm text-slate-300">
+          На телефоне коснитесь кнопки в AR. В гарнитуре с отслеживанием рук наведите указатель на кнопку и сведите большой и указательный пальцы.
+        </p>
       </div>
     </div>
   );

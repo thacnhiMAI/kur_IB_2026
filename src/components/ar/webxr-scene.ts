@@ -35,12 +35,7 @@ function makeLabel(book: ARBookPayload) {
   return texture;
 }
 
-export async function attachBookScene(session: XRSession, book: ARBookPayload) {
-  const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-  renderer.xr.enabled = true;
-  renderer.xr.setReferenceSpaceType("local");
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera();
+export function createBookDisplay(book: ARBookPayload) {
   const geometry = new THREE.BoxGeometry(.16, .23, .035);
   const labelGeometry = new THREE.PlaneGeometry(.28, .187);
   const labelTexture = makeLabel(book);
@@ -55,8 +50,6 @@ export async function attachBookScene(session: XRSession, book: ARBookPayload) {
   label.position.set(.08, 0, 0);
   const display = new THREE.Group();
   display.add(volume, label);
-  display.visible = false;
-  scene.add(display);
   let disposed = false;
   const loader = new THREE.TextureLoader();
   const applyTexture = (texture: THREE.Texture) => {
@@ -75,37 +68,11 @@ export async function attachBookScene(session: XRSession, book: ARBookPayload) {
   function dispose() {
     if (disposed) return;
     disposed = true;
-    session.removeEventListener("end", dispose);
-    renderer.setAnimationLoop(null);
     geometry.dispose();
     labelGeometry.dispose();
     labelTexture.dispose();
     cover.map?.dispose();
     for (const material of [cover, binding, pages, labelMaterial]) material.dispose();
-    renderer.dispose();
   }
-
-  session.addEventListener("end", dispose, { once: true });
-  try {
-    await renderer.xr.setSession(session);
-    if (disposed) return;
-    const referenceSpace = renderer.xr.getReferenceSpace();
-    renderer.setAnimationLoop((_time, frame) => {
-      // Place once using the viewer's initial pose, then keep the book fixed in the room.
-      if (!display.visible && frame && referenceSpace) {
-        const pose = frame.getViewerPose(referenceSpace);
-        if (pose) {
-          const { position, orientation } = pose.transform;
-          display.quaternion.set(orientation.x, orientation.y, orientation.z, orientation.w);
-          display.position.set(0, 0, -.65).applyQuaternion(display.quaternion);
-          display.position.add(new THREE.Vector3(position.x, position.y, position.z));
-          display.visible = true;
-        }
-      }
-      renderer.render(scene, camera);
-    });
-  } catch (error) {
-    dispose();
-    throw error;
-  }
+  return { display, dispose };
 }
