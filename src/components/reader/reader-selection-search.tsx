@@ -13,12 +13,14 @@ export function ReaderSelectionSearch({ anchor, getImage, getText, onClose }: {
   onClose: () => void;
 }) {
   const box = useRef<HTMLElement>(null);
+  const lensFileInput = useRef<HTMLInputElement>(null);
   const drag = useRef<{ id: number; x: number; y: number } | null>(null);
   const [position, setPosition] = useState(anchor);
   const [query, setQuery] = useState("");
-  const [image, setImage] = useState<{ url: string; name: string } | null>(null);
+  const [image, setImage] = useState<{ url: string; file: File } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [lensError, setLensError] = useState("");
 
   function clamp({ x, y }: Point) {
     const { clientWidth, clientHeight } = document.documentElement;
@@ -50,7 +52,7 @@ export function ReaderSelectionSearch({ anchor, getImage, getText, onClose }: {
         const [file, nativeText] = await Promise.all([getImage(), getText().catch(() => "")]);
         if (controller.signal.aborted) return;
         url = URL.createObjectURL(file);
-        setImage({ url, name: file.name });
+        setImage({ url, file });
         if (nativeText) {
           setQuery((current) => current || nativeText.slice(0, 800));
           return;
@@ -96,10 +98,27 @@ export function ReaderSelectionSearch({ anchor, getImage, getText, onClose }: {
         <textarea aria-label="Поисковый запрос" rows={3} maxLength={800} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Введите или исправьте текст для поиска…" />
         <p role="status">{loading ? "Распознаём выделенный фрагмент…" : error || "Проверьте распознанный текст перед поиском."}</p>
         {query.trim() ? <a href={`https://www.google.com/search?q=${encodeURIComponent(query.trim())}`} target="_blank" rel="noopener noreferrer">Google Search</a> : null}
-        {image ? <div className="reader-selection-search-lens">
-          <a href="https://lens.google.com/" target="_blank" rel="noopener noreferrer">Google Lens</a>
-          <a href={image.url} download={image.name}>Скачать фрагмент для Lens</a>
-        </div> : null}
+        {image ? (
+          <form action="https://lens.google.com/v3/upload" method="post" encType="multipart/form-data" target="_blank" rel="noopener noreferrer"
+            onSubmit={(event) => {
+              const input = lensFileInput.current;
+              try {
+                if (!input) throw new Error("Missing Lens file input");
+                const transfer = new DataTransfer();
+                transfer.items.add(image.file);
+                input.files = transfer.files;
+                if (!input.files?.length) throw new Error("Missing Lens upload file");
+                setLensError("");
+              } catch {
+                event.preventDefault();
+                setLensError("Браузер не смог отправить изображение в Google Lens.");
+              }
+            }}>
+            <input ref={lensFileInput} type="file" name="encoded_image" hidden />
+            <button type="submit" className="reader-selection-search-lens">Google Lens</button>
+            {lensError ? <p role="alert">{lensError}</p> : null}
+          </form>
+        ) : null}
       </div>
     </section>
   );

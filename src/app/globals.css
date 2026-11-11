@@ -2035,7 +2035,7 @@ html[data-theme="light"] .auth-shell .text-blue-100 { color: #1d4ed8 !important;
 .reader-selection-search-body img { width:auto; max-width:100%; height:auto; max-height:120px; object-fit:contain; }
 .reader-selection-search-body textarea { width:100%; min-width:0; padding:8px; background:var(--surface-2); border:1px solid var(--accent-border); border-radius:8px; user-select:text; }
 .reader-selection-search-body a { color:var(--accent-strong); text-decoration:underline; }
-.reader-selection-search-lens { display:flex; flex-wrap:wrap; gap:8px 12px; }
+.reader-selection-search-lens { color:var(--accent-strong); text-decoration:underline; }
 .reader-ai-toast { display:grid; grid-template-columns:18px minmax(0,1fr) 28px; align-items:center; gap:8px; border:1px solid var(--surface-border-strong); border-radius:13px; background:color-mix(in srgb, var(--surface-1) 97%, transparent); box-shadow:0 18px 54px rgb(0 0 0 / .38); padding:9px 10px; color:var(--text-secondary); font-size:.72rem; pointer-events:auto; backdrop-filter:blur(18px); }
 .reader-ai-toast > svg { color:#4ade80; }
 .reader-ai-toast button { display:grid; width:28px; height:28px; place-items:center; border:0; border-radius:8px; background:var(--surface-3); color:var(--text-muted); }
