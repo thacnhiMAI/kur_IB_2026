@@ -1,6 +1,7 @@
 "use client";
 
 import { BookOpenText } from "lucide-react";
+import { customHighlightColor } from "@/lib/reading/highlight-color";
 
 export type ReaderNoteItem = {
   id: string;
@@ -34,7 +35,7 @@ export function ReaderNotesRail({
         <div className="reader-rail-title"><BookOpenText size={16} /><span>Заметки</span></div>
         {notes.length ? notes.map((note) => (
           <button key={note.id} type="button" className="reader-note-row" onClick={() => onOpenNote(note)}>
-            <span className={`reader-note-dot is-${note.color}`} />
+            <span className={`reader-note-dot is-${note.color}`} style={{ backgroundColor: customHighlightColor(note.color) }} />
             <span className="reader-note-copy">{preview(note.note)}</span>
             <span className="reader-note-page">{note.page}</span>
           </button>

@@ -3,6 +3,9 @@ import { z } from "zod";
 
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { highlightHexPattern, highlightPresets } from "@/lib/reading/highlight-color";
+
+const colorSchema = z.union([z.enum(highlightPresets), z.string().regex(highlightHexPattern)]);
 
 const rectSchema = z.object({
   x: z.number().min(0).max(1),
@@ -18,13 +21,13 @@ const createSchema = z.object({
   quote: z.string().trim().max(5000).nullable().optional(),
   note: z.string().trim().max(5000).nullable().optional(),
   rects: z.array(rectSchema).max(32).optional(),
-  color: z.enum(["yellow", "cyan", "rose"]).default("yellow")
+  color: colorSchema.default("yellow")
 }).refine((value) => Boolean(value.quote?.trim() || value.note?.trim() || value.rects?.length), { message: "Добавьте выделение или заметку." });
 
 const updateSchema = z.object({
   id: z.string().min(1),
   note: z.string().trim().max(5000).nullable().optional(),
-  color: z.enum(["yellow", "cyan", "rose"]).optional()
+  color: colorSchema.optional()
 });
 
 async function viewerId() {

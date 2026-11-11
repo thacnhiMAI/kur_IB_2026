@@ -19,6 +19,7 @@ import {
 } from "@/lib/preferences/settings";
 import { openReaderPageCache, type ReaderDocumentInfo } from "@/lib/reading/reader-page-cache";
 import { cropReaderPage, readerImageBounds, readerPageFile } from "@/lib/reading/page-image";
+import { customHighlightColor } from "@/lib/reading/highlight-color";
 
 type PdfFlipReaderProps = {
   title: string;
@@ -878,6 +879,11 @@ export default function PdfFlipReader({
         const mark = document.createElement("button");
         mark.type = "button";
         mark.className = `reader-direct-highlight reader-saved-highlight is-${item.color}${selectedAnnotation?.id === item.id ? " is-selected" : ""}`;
+        const customColor = customHighlightColor(item.color);
+        if (customColor) {
+          mark.style.backgroundColor = `${customColor}52`;
+          mark.style.borderColor = `${customColor}70`;
+        }
         mark.dataset.annotationId = item.id;
         mark.setAttribute("aria-label", item.note ? `Highlight: ${item.note}` : "Highlight");
         mark.title = item.note || "Highlight + Note";

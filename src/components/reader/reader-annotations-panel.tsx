@@ -1,7 +1,8 @@
 "use client";
 
-import { Grip, Save, X } from "lucide-react";
+import { Grip, Plus, Save, X } from "lucide-react";
 import { type PointerEvent as ReactPointerEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { customHighlightColor, highlightPresets } from "@/lib/reading/highlight-color";
 
 export type HighlightRect = { x: number; y: number; width: number; height: number };
 export type ReaderAnnotation = {
@@ -47,7 +48,8 @@ export function ReaderAnnotationsPanel({
   const dragRef = useRef<DragState | null>(null);
   const frameRef = useRef<number | null>(null);
   const [note, setNote] = useState("");
-  const [color, setColor] = useState<"yellow" | "cyan" | "rose">("yellow");
+  const [color, setColor] = useState("yellow");
+  const customColor = customHighlightColor(color);
   const [saving, setSaving] = useState(false);
 
   const editing = Boolean(selectedAnnotation && !pendingHighlight);
@@ -83,18 +85,17 @@ export function ReaderAnnotationsPanel({
     const next = clampPosition(saved ?? { x: 26, y: Math.max(76, window.innerHeight - 280) });
     positionRef.current = next;
     applyPosition(next);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   useEffect(() => {
     if (editing && selectedAnnotation) {
       setNote(selectedAnnotation.note ?? "");
-      setColor(selectedAnnotation.color === "cyan" || selectedAnnotation.color === "rose" ? selectedAnnotation.color : "yellow");
+      setColor(selectedAnnotation.color);
     } else {
       setNote("");
       setColor("yellow");
     }
-  }, [editing, selectedAnnotation?.id, pendingHighlight?.page, pendingHighlight?.rect]);
+  }, [editing, selectedAnnotation, pendingHighlight?.page, pendingHighlight?.rect]);
 
   useEffect(() => () => {
     if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
@@ -169,9 +170,14 @@ export function ReaderAnnotationsPanel({
           onPointerCancel={endDrag}
         ><Grip size={16} /></button>
         <div className="reader-note-editor-colors">
-          {(["yellow", "cyan", "rose"] as const).map((value) => (
-            <button key={value} type="button" onClick={() => setColor(value)} aria-label={`Цвет ${value}`} className={`reader-annotation-color is-${value} ${color === value ? "is-active" : ""}`} />
+          {highlightPresets.map((value) => (
+            <button key={value} type="button" onClick={() => setColor(value)} aria-label={`Цвет ${value}`} aria-pressed={color === value} className={`reader-annotation-color is-${value} ${color === value ? "is-active" : ""}`} />
           ))}
+          <label className={`reader-annotation-color reader-annotation-color-custom ${customColor ? "is-active" : ""}`}
+            style={customColor ? { backgroundColor: `${customColor}45` } : undefined}>
+            <Plus size={16} aria-hidden="true" />
+            <input type="color" aria-label="Выбрать свой цвет" value={customColor ?? "#facc15"} onChange={(event) => setColor(event.currentTarget.value)} />
+          </label>
         </div>
         <button type="button" className="reader-note-editor-close" onClick={onClose} aria-label="Закрыть"><X size={16} /></button>
       </div>
