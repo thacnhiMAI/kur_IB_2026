@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import {
+  type CSSProperties,
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
   useEffect,
@@ -355,6 +356,7 @@ export function ReaderFloatingToolbar(props: ReaderFloatingToolbarProps) {
   if (!mounted || !portalTarget) return null;
 
   const totalPages = Math.max(1, props.totalPages);
+  const pageDigits = String(totalPages).length;
   const compactIconButton = "reader-tool-button reader-tool-button--square";
 
   return createPortal(
@@ -439,11 +441,12 @@ export function ReaderFloatingToolbar(props: ReaderFloatingToolbarProps) {
                 value={pageInput}
                 onChange={(event) => {
                   const next = event.target.value.replace(/\D+/g, "");
-                  setPageInput(next.slice(0, String(totalPages).length));
+                  setPageInput(next.slice(0, pageDigits));
                 }}
                 onFocus={(event) => event.currentTarget.select()}
                 onBlur={normalizePageInput}
                 className="reader-page-input"
+                style={{ "--reader-page-digits": pageDigits } as CSSProperties}
                 aria-label="Номер страницы"
                 title="Введите номер страницы и нажмите Enter"
               />
