@@ -4,6 +4,7 @@ import type {
   CatalogBookRecord
 } from "@/lib/catalog/queries";
 import { buildARBookPayload } from "@/lib/ar/payload";
+import { getBookCoverAsset } from "@/lib/books/image-source";
 import {
   getReadingEntryMode,
   resolvePrimaryBookContent
@@ -11,12 +12,8 @@ import {
 
 const DEFAULT_BOOK_COLOR = "#0F172A";
 
-function getPrimaryCover(book: Pick<CatalogBookRecord, "coverAssets">) {
-  return book.coverAssets[0] ?? null;
-}
-
 export function toCatalogBookCard(book: CatalogBookRecord): CatalogBookCard {
-  const primaryCover = getPrimaryCover(book);
+  const primaryCover = getBookCoverAsset(book);
   const primaryContent = resolvePrimaryBookContent(book.contents);
   const readingMode = getReadingEntryMode(primaryContent);
 
@@ -52,7 +49,7 @@ export function toCatalogBookCard(book: CatalogBookRecord): CatalogBookCard {
 }
 
 export function toCatalogBookDetail(book: CatalogBookRecord): CatalogBookDetail {
-  const primaryCover = getPrimaryCover(book);
+  const primaryCover = getBookCoverAsset(book);
   const primaryContent = resolvePrimaryBookContent(book.contents);
   const readingMode = getReadingEntryMode(primaryContent);
 

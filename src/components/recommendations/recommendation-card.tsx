@@ -2,11 +2,10 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { Bookmark, Loader2 } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 
 import { setRecommendationFavorite } from "@/app/recommendations/actions";
-import { resolveBookImageSrc } from "@/lib/books/image-source";
+import { BookCoverImage } from "@/components/books/book-cover-image";
 
 const FALLBACK_COVER = "/covers/fallback-book.jpg";
 
@@ -62,13 +61,12 @@ export function RecommendationCard({
     }
   }
 
-  const imageSrc = resolveBookImageSrc(coverImage, FALLBACK_COVER);
 
   return (
     <article data-testid="recommendation-card" className="recommendation-card-reference group relative flex min-w-0 flex-1 flex-col p-4">
       <Link href={`/books/${slug}`} className="relative block overflow-hidden rounded-[12px] bg-[var(--surface-3)]">
-        <Image
-          src={imageSrc}
+        <BookCoverImage
+          src={coverImage} fallback={FALLBACK_COVER}
           alt={title}
           width={420}
           height={600}

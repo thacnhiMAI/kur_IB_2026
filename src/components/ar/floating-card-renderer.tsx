@@ -1,11 +1,9 @@
-import Image from "next/image";
 import React from "react";
 
 import { DEFAULT_AR_COVER } from "@/lib/ar/types";
-import { resolveBookImageSrc } from "@/lib/books/image-source";
+import { BookCoverImage } from "@/components/books/book-cover-image";
 
 export function FloatingCardRenderer({ coverImage }: { coverImage?: string | null }) {
-  const imageSrc = resolveBookImageSrc(coverImage, DEFAULT_AR_COVER);
 
   return (
     <div className="relative mx-auto h-[390px] w-[290px]" style={{ perspective: "1400px" }}>
@@ -17,7 +15,7 @@ export function FloatingCardRenderer({ coverImage }: { coverImage?: string | nul
           className="overflow-hidden rounded-[24px] border border-white/15 bg-slate-900/85 shadow-[0_42px_85px_rgba(2,6,23,0.48)]"
           style={{ transform: "translateZ(12px)" }}
         >
-          <Image src={imageSrc} alt="" width={720} height={1080} className="h-auto w-full object-cover" />
+          <BookCoverImage src={coverImage} fallback={DEFAULT_AR_COVER} alt="" width={720} height={1080} className="h-auto w-full object-cover" />
         </div>
         <div
           className="absolute inset-y-3 -right-3 w-6 rounded-r-lg bg-[repeating-linear-gradient(180deg,#f8fafc_0px,#e2e8f0_3px,#f8fafc_5px)]"

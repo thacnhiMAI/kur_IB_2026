@@ -10,6 +10,7 @@ export type CatalogSearchParams = {
 };
 
 export type CatalogBookCoverAsset = {
+  originalUrl?: string;
   publicUrl: string;
   dominantColor: string | null;
   blurDataUrl: string | null;

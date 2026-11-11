@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 
 import { DEFAULT_AR_COVER, type ARBookPayload } from "@/lib/ar/types";
-import { resolveBookImageSrc } from "@/lib/books/image-source";
+import { BookCoverImage } from "@/components/books/book-cover-image";
 
 export function QRScanner() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -102,7 +101,7 @@ export function QRScanner() {
             <div className="absolute inset-0 flex items-center justify-center gap-4 bg-black/25 p-4 sm:gap-6" aria-live="polite">
               <div className="shrink-0 [perspective:440px]">
                 <div className="overflow-hidden rounded-sm border-r-8 border-[#ece2c7] shadow-2xl [transform:rotateY(-28deg)_rotateX(5deg)]">
-                  <Image src={resolveBookImageSrc(preview.coverImage, DEFAULT_AR_COVER)} width={116} height={164} alt={preview.title} className="aspect-[5/7] w-20 object-cover sm:w-28" />
+                  <BookCoverImage src={preview.coverImage} fallback={DEFAULT_AR_COVER} width={116} height={164} alt={preview.title} className="aspect-[5/7] w-20 object-cover sm:w-28" />
                 </div>
               </div>
               <div className="min-w-0 max-w-xs space-y-2 rounded-xl bg-slate-950/90 p-3 text-white sm:p-4">

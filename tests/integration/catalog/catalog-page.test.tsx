@@ -151,18 +151,10 @@ describe("CatalogPage", () => {
     expect(screen.getByTestId("featured-shelf")).toBeInTheDocument();
     expect(screen.getAllByTestId("book-card-3d")).not.toHaveLength(0);
     expect(screen.getAllByTestId("catalog-reading-dot").find((dot) => !dot.classList.contains("hidden"))).toHaveClass("bg-amber-300");
-    expect(screen.getAllByAltText("Дизайн привычных вещей")[0]).toHaveAttribute(
-      "sizes"
+    const cachedCover = screen.getAllByAltText("Дизайн привычных вещей").find((image) =>
+      image.getAttribute("src")?.includes("design-of-everyday-things-9780441172719.jpg")
     );
-    expect(
-      screen
-        .getAllByAltText("Дизайн привычных вещей")
-        .some((image) =>
-          image
-            .getAttribute("src")
-            ?.includes("design-of-everyday-things-9780441172719.jpg")
-        )
-    ).toBe(true);
+    expect(cachedCover).toHaveAttribute("sizes");
   });
 
   it("returns featured books with cached cover assets from the catalog service", async () => {

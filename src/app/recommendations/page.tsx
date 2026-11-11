@@ -5,6 +5,7 @@ import { RecommendationHero } from "@/components/recommendations/recommendation-
 import { RecommendationInsightStrip } from "@/components/recommendations/recommendation-insight-strip";
 import { RecommendationSource } from "@/components/recommendations/recommendation-source";
 import { SearchableRecommendationsGrid } from "@/components/search/searchable-recommendations-grid";
+import { getBookCoverAsset } from "@/lib/books/image-source";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import {
@@ -61,22 +62,25 @@ export default async function RecommendationsPage() {
       {insights.success && <RecommendationInsightStrip insights={insights.data} />}
       {snapshot?.items.length ? (
         <SearchableRecommendationsGrid
-          items={snapshot.items.map((item) => ({
-            id: item.id,
-            bookId: item.book.id,
-            isFavorite: favoriteBookIds.has(item.book.id),
-            slug: item.book.slug,
-            title: item.book.title,
-            subtitle: null,
-            authors: item.book.authors.map((entry) => entry.author.name),
-            description: item.book.description ?? "",
-            reason: item.reason,
-            badge: item.badge ?? undefined,
-            score: item.score,
-            ratingAverage: item.book.ratingAverage,
-            coverImage: item.book.coverAssets[0]?.publicUrl ?? item.book.coverImage,
-            blurDataUrl: item.book.coverAssets[0]?.blurDataUrl ?? null
-          }))}
+          items={snapshot.items.map((item) => {
+            const coverAsset = getBookCoverAsset(item.book);
+            return {
+              id: item.id,
+              bookId: item.book.id,
+              isFavorite: favoriteBookIds.has(item.book.id),
+              slug: item.book.slug,
+              title: item.book.title,
+              subtitle: null,
+              authors: item.book.authors.map((entry) => entry.author.name),
+              description: item.book.description ?? "",
+              reason: item.reason,
+              badge: item.badge ?? undefined,
+              score: item.score,
+              ratingAverage: item.book.ratingAverage,
+              coverImage: coverAsset?.publicUrl ?? item.book.coverImage,
+              blurDataUrl: coverAsset?.blurDataUrl ?? null
+            };
+          })}
         />
       ) : (
         <div className="recommendation-card-reference p-10 text-center text-[var(--text-secondary)]">

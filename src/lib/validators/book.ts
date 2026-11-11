@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { isExternalBookImage } from "@/lib/books/image-source";
+
 export const bookSchema = z.object({
   title: z.string().min(2, "Название должно содержать минимум 2 символа."),
   subtitle: z.string().optional(),
@@ -7,7 +9,12 @@ export const bookSchema = z.object({
   slug: z.string().min(2, "Slug должен содержать минимум 2 символа.").regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug может содержать только латинские буквы, цифры и дефисы."),
   description: z.string().min(10, "Описание должно быть информативным."),
   coverImage: z
-    .union([z.literal(""), z.string().url(), z.string().startsWith("/covers/")])
+    .string()
+    .trim()
+    .refine(
+      (value) => !value || value.startsWith("/covers/") || isExternalBookImage(value),
+      "Укажите прямую HTTPS-ссылку на изображение или путь в /covers/."
+    )
     .optional(),
   year: z.number().int().min(1000).max(2100),
   isbn: z.string().optional(),

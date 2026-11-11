@@ -211,10 +211,8 @@ describe("getBookDetailPageData", () => {
       "href",
       "/ar/books/design-of-everyday-things"
     );
-    expect(screen.getByAltText("Дизайн привычных вещей")).toHaveAttribute(
-      "src",
-      "/covers/design-of-everyday-things-9780441172719.jpg"
-    );
+    const cover = screen.getByRole<HTMLImageElement>("img", { name: "Дизайн привычных вещей" });
+    expect(new URL(cover.src).pathname).toBe("/covers/design-of-everyday-things-9780441172719.jpg");
     expect(screen.getByText("0%")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Оставить отзыв" })).toBeInTheDocument();
     expect(screen.getByText("Reader One")).toBeInTheDocument();

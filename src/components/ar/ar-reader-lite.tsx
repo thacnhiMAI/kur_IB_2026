@@ -2,11 +2,11 @@
 
 /* eslint-disable @next/next/no-img-element */
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { pdfjs } from "react-pdf";
 
 import { DEFAULT_AR_COVER } from "@/lib/ar/types";
-import { resolveBookImageSrc } from "@/lib/books/image-source";
+import { BookCoverImage } from "@/components/books/book-cover-image";
 
 import type { ARRendererVariant } from "@/lib/ar/capabilities";
 import type { ARBookPayload } from "@/lib/ar/types";
@@ -53,10 +53,6 @@ export function ARReaderLite({
   pdfUrl?: string | null;
   isAuthenticated: boolean;
 }) {
-  const coverImage = useMemo(
-    () => resolveBookImageSrc(book.coverImage, DEFAULT_AR_COVER),
-    [book.coverImage]
-  );
   const loadingTaskRef = useRef<PdfLoadingTask | null>(null);
   const pdfRef = useRef<PdfDocument | null>(null);
 
@@ -211,7 +207,7 @@ export function ARReaderLite({
               style={{ transform: "translate(-50%, -50%) rotateX(9deg) rotateY(-30deg)", transformStyle: "preserve-3d" }}
             >
               <div className="absolute inset-0 overflow-hidden rounded-[26px] border border-[var(--surface-border-strong)] bg-slate-900 shadow-[0_55px_100px_rgba(0,0,0,.5)]" style={{ transform: "translateZ(22px)" }}>
-                <img src={coverImage} alt={book.title} className="h-full w-full object-cover" draggable={false} />
+                <BookCoverImage src={book.coverImage} fallback={DEFAULT_AR_COVER} width={720} height={1080} unoptimized alt={book.title} className="h-full w-full object-cover" draggable={false} />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-white/10" />
               </div>
               <div

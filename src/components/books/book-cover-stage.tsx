@@ -1,7 +1,6 @@
 import React from "react";
-import Image from "next/image";
 
-import { resolveBookImageSrc } from "@/lib/books/image-source";
+import { BookCoverImage } from "@/components/books/book-cover-image";
 
 type BookCoverStageProps = {
   title: string;
@@ -24,7 +23,6 @@ export function BookCoverStage({
   isFeatured = false
 }: BookCoverStageProps) {
   const stageColor = dominantColor ?? DEFAULT_STAGE_COLOR;
-  const imageSrc = resolveBookImageSrc(coverImage, FALLBACK_COVER);
 
   return (
     <div
@@ -41,13 +39,13 @@ export function BookCoverStage({
         <div className="absolute inset-y-10 left-4 w-7 rounded-l-[28px] bg-slate-950/65 shadow-[inset_-8px_0_18px_rgba(255,255,255,0.08)]" />
         <div className="relative ml-6 w-full rounded-[28px] border border-white/15 bg-slate-950/50 p-3 shadow-[0_28px_90px_rgba(2,6,23,0.55)]">
           <div className="absolute inset-y-4 left-1 w-2 rounded-full bg-white/10 blur-[1px]" />
-          <Image
-            src={imageSrc}
+          <BookCoverImage
+            src={coverImage} fallback={FALLBACK_COVER}
             alt={title}
             width={720}
             height={1080}
             priority
-            unoptimized={imageSrc.startsWith("/covers/")}
+            unoptimized
             sizes="(max-width: 1280px) 100vw, 380px"
             placeholder={blurDataUrl ? "blur" : "empty"}
             blurDataURL={blurDataUrl ?? undefined}

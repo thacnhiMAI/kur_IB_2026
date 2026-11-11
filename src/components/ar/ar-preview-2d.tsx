@@ -1,14 +1,12 @@
-import Image from "next/image";
 import React from "react";
 
 import { DEFAULT_AR_COVER } from "@/lib/ar/types";
-import { resolveBookImageSrc } from "@/lib/books/image-source";
+import { BookCoverImage } from "@/components/books/book-cover-image";
 
 import type { ARBookPayload } from "@/lib/ar/types";
 
 export function ARPreview2D({ book }: { book: ARBookPayload }) {
   const accentColor = book.dominantColor ?? "#0F172A";
-  const imageSrc = resolveBookImageSrc(book.coverImage, DEFAULT_AR_COVER);
 
   return (
     <div
@@ -19,8 +17,8 @@ export function ARPreview2D({ book }: { book: ARBookPayload }) {
       }}
     >
       <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-slate-900/70">
-        <Image
-          src={imageSrc}
+        <BookCoverImage
+          src={book.coverImage} fallback={DEFAULT_AR_COVER}
           alt={book.title}
           width={720}
           height={1080}

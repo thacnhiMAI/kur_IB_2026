@@ -68,7 +68,7 @@ export function CoverImageField({ defaultValue }: CoverImageFieldProps) {
         </p>
       ) : null}
       <p className="text-xs text-[var(--text-muted)]">
-        Если выбран файл, загруженная обложка имеет приоритет над URL.
+        Укажите прямую HTTPS-ссылку на изображение. Загруженный файл имеет приоритет.
       </p>
     </div>
   );

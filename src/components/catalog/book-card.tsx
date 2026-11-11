@@ -1,8 +1,7 @@
 import React from "react";
 import Link from "next/link";
-import Image from "next/image";
 
-import { resolveBookImageSrc } from "@/lib/books/image-source";
+import { BookCoverImage } from "@/components/books/book-cover-image";
 
 type BookCardProps = {
   id?: string;
@@ -53,7 +52,6 @@ export function BookCard({
 }: BookCardProps) {
   const isFeatured = variant === "featured";
   const genreSummary = formatGenreSummary(genres);
-  const imageSrc = resolveBookImageSrc(coverImage, FALLBACK_COVER);
   const titleId = `book-card-title-${slug}`;
 
   return (
@@ -80,8 +78,8 @@ export function BookCard({
 
       <div className="relative flex h-full flex-col">
         <div className="book-cover-frame mb-6 overflow-hidden rounded-[28px] border border-[var(--surface-border)] bg-[var(--surface-3)] p-2.5 transition-colors group-hover:border-[var(--accent-border)]">
-          <Image
-            src={imageSrc}
+          <BookCoverImage
+            src={coverImage} fallback={FALLBACK_COVER}
             alt={title}
             width={720}
             height={1080}

@@ -1,3 +1,4 @@
+import { getBookCoverAsset } from "@/lib/books/image-source";
 import { db } from "@/lib/db";
 
 export type RecommendationCandidate = {
@@ -30,7 +31,7 @@ export async function getRecommendationCandidates(): Promise<RecommendationCandi
     title: book.title,
     description: book.description,
     slug: book.slug,
-    coverImage: book.coverAssets[0]?.publicUrl ?? book.coverImage ?? null,
+    coverImage: getBookCoverAsset(book)?.publicUrl ?? book.coverImage,
     authors: book.authors.map((entry) => entry.author.name),
     genres: book.genres.map((entry) => entry.genre.name),
     ratingAverage: book.ratingAverage,
