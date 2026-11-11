@@ -2,7 +2,7 @@
 
 import { ArrowLeftRight, Grip, X } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type PointerEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { translationLanguages, translationTextLimit } from "@/lib/reading/translation";
 
 type Point = { x: number; y: number };
@@ -17,6 +17,8 @@ export function ReaderSelectionSearch({ anchor, getImage, getText, onClose }: {
   const lensFileInput = useRef<HTMLInputElement>(null);
   const drag = useRef<{ id: number; x: number; y: number } | null>(null);
   const [position, setPosition] = useState(anchor);
+  const [height, setHeight] = useState<number>();
+  const resize = useRef<{ pointerId: number; y: number; top: number; height: number } | null>(null);
   const [query, setQuery] = useState("");
   const [image, setImage] = useState<{ url: string; file: File } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -68,6 +70,43 @@ export function ReaderSelectionSearch({ anchor, getImage, getText, onClose }: {
     };
   }
 
+  function resizeHeight(nextHeight: number, bottom?: number) {
+    const available = document.documentElement.clientHeight - 16;
+    const bounded = Math.min(available, Math.max(180, nextHeight));
+    setHeight(bounded);
+    if (bottom !== undefined) {
+      setPosition((current) => ({ ...current, y: Math.max(8, bottom - bounded) }));
+    }
+  }
+
+  function resizeHandle(edge: "top" | "bottom") {
+    return (
+      <button
+        type="button"
+        className={`reader-selection-resize reader-selection-resize--${edge}`}
+        aria-label={edge === "top" ? "Изменить высоту окна за верхний край" : "Изменить высоту окна за нижний край"}
+        onPointerDown={(event: PointerEvent<HTMLButtonElement>) => {
+          const panel = box.current;
+          if (event.button !== 0 || !panel) return;
+          event.currentTarget.setPointerCapture(event.pointerId);
+          resize.current = { pointerId: event.pointerId, y: event.clientY, top: position.y, height: panel.offsetHeight };
+        }}
+        onPointerMove={(event) => {
+          const start = resize.current;
+          if (start?.pointerId !== event.pointerId) return;
+          const delta = event.clientY - start.y;
+          resizeHeight(start.height + (edge === "top" ? -delta : delta), edge === "top" ? start.top + start.height : undefined);
+        }}
+        onLostPointerCapture={() => { resize.current = null; }}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+          event.preventDefault();
+          resizeHeight((box.current?.offsetHeight ?? 180) + (event.key === "ArrowUp" ? 24 : -24));
+        }}
+      />
+    );
+  }
+
   useLayoutEffect(() => {
     const node = box.current;
     if (!node) return;
@@ -116,8 +155,9 @@ export function ReaderSelectionSearch({ anchor, getImage, getText, onClose }: {
   }, [getImage, getText]);
 
   return (
-    <section ref={box} className="reader-selection-search" role="dialog" aria-label="Поиск и перевод" style={{ left: position.x, top: position.y }}
+    <section ref={box} className="reader-selection-search" role="dialog" aria-label="Поиск и перевод" style={{ left: position.x, top: position.y, height }}
       onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); onClose(); } }}>
+      {resizeHandle("top")}
       <header>
         <div className="reader-selection-search-grip" onPointerDown={(event) => {
           if (event.button !== 0) return;
@@ -190,6 +230,7 @@ export function ReaderSelectionSearch({ anchor, getImage, getText, onClose }: {
           </form>
         ) : null}
       </div>
+      {resizeHandle("bottom")}
     </section>
   );
 }
