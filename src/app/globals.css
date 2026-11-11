@@ -2043,6 +2043,7 @@ html[data-theme="light"] .auth-shell .text-blue-100 { color: #1d4ed8 !important;
     max-height:calc(100dvh - 24px);
     overflow-y:auto;
   }
+  .reader-floating-toolbar[data-expanded="false"] { width:max-content; }
   .reader-floating-toolbar .reader-drag-handle { display:none; }
   .reader-floating-toolbar[data-expanded="true"] .reader-toolbar-topline { display:none; }
   .reader-toolbar-actions .reader-mobile-collapse { display:inline-flex; }
