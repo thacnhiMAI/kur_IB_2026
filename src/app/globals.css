@@ -1893,6 +1893,7 @@ html[data-theme="light"] .auth-shell .text-blue-100 { color: #1d4ed8 !important;
 }
 .reader-ai-resizer::after { content:""; position:absolute; left:3px; top:18%; bottom:18%; width:1px; background:var(--surface-border-strong); opacity:.65; }
 .reader-ai-index, .reader-ai-chat { height:100%; display:flex; min-height:0; flex-direction:column; }
+.reader-ai-index { overflow-y:auto; }
 .reader-ai-index-header, .reader-ai-chat-header {
   display:flex;
   min-height:52px;

@@ -16,6 +16,7 @@ import {
   readAppSettingsFromBrowser
 } from "@/lib/preferences/settings";
 import { openReaderPageCache, type ReaderDocumentInfo } from "@/lib/reading/reader-page-cache";
+import { readerPageFile } from "@/lib/reading/page-image";
 
 type PdfFlipReaderProps = {
   title: string;
@@ -271,6 +272,7 @@ export default function PdfFlipReader({
   const [speechRate, setSpeechRate] = useState(1);
   const [speaking, setSpeaking] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [aiOpeningSpread, setAiOpeningSpread] = useState<{ first: number; last: number } | null>(null);
   const [aiEnabled, setAiEnabled] = useState(true);
   const [annotationsOpen, setAnnotationsOpen] = useState(false);
   const [notesListOpen, setNotesListOpen] = useState(false);
@@ -933,6 +935,10 @@ export default function PdfFlipReader({
   }, []);
 
   const visibleEnd = Math.min(totalPages, position.page + (position.landscape ? 1 : 0));
+  // Opening the AI rail can shrink a two-page spread into a single page.
+  const openingSpread = aiOpeningSpread && position.page >= aiOpeningSpread.first && position.page <= aiOpeningSpread.last
+    ? aiOpeningSpread
+    : null;
   const progressPercent = ready && totalPages > 0 ? Math.round((visibleEnd / totalPages) * 100) : 0;
   const canGoBack = ready && !busy && position.page > 1;
   const canGoNext = ready && !busy && visibleEnd < totalPages;
@@ -966,6 +972,12 @@ export default function PdfFlipReader({
     };
   }, [busy, pageWidth, position.page, ready, totalPages, visibleEnd, zoom]);
 
+  const getPageImage = useCallback(async (pageNumber: number) => {
+    const loader = pageLoaderRef.current;
+    if (!loader) throw new Error("Страница PDF ещё не готова.");
+    return readerPageFile(await loader.raster(pageNumber, OCR_IMAGE_WIDTH), pageNumber);
+  }, []);
+
   const ensurePageText = useCallback(async (pageNumber: number) => {
     const loader = pageLoaderRef.current;
     if (!loader) return "";
@@ -988,9 +1000,8 @@ export default function PdfFlipReader({
       if (preferMath) mathOcrAttemptedRef.current.add(pageNumber);
 
       try {
-        const image = await loader.raster(pageNumber, OCR_IMAGE_WIDTH);
         const form = new FormData();
-        form.set("image", new File([image], `page-${pageNumber}.png`, { type: image.type || "image/png" }));
+        form.set("image", await getPageImage(pageNumber));
         if (preferMath) form.set("preferMath", "1");
 
         const response = await fetch("/api/reader-ocr", { method: "POST", body: form });
@@ -1002,7 +1013,8 @@ export default function PdfFlipReader({
 
         const ocrText = payload.text.trim();
         const mathText = payload.mathText?.trim() ?? "";
-        const baseText = nativeText || ocrText;
+        const hasRecognizedMath = payload.engine === "openai-vision" && preferMath && /\$[^$]+\$/.test(ocrText);
+        const baseText = hasRecognizedMath ? ocrText : nativeText || ocrText;
         const finalText = mathText && !baseText.includes(mathText)
           ? `${baseText}\n\n[LaTeX OCR]\n${mathText}`
           : baseText;
@@ -1021,7 +1033,7 @@ export default function PdfFlipReader({
 
     ocrJobsRef.current.set(pageNumber, job);
     return job;
-  }, []);
+  }, [getPageImage]);
 
   const prepareAiText = useCallback(async (scope: "page" | "document", requestedPage?: number) => {
     if (scope === "page") {
@@ -1307,8 +1319,10 @@ export default function PdfFlipReader({
         title={title}
         bookId={bookId}
         contentId={contentId}
-        page={position.page}
+        page={position.landscape ? position.page : openingSpread?.first ?? position.page}
+        lastVisiblePage={position.landscape ? visibleEnd : openingSpread?.last ?? position.page}
         getText={prepareAiText}
+        getPageImage={getPageImage}
         onClose={() => setAiOpen(false)}
         onWidthChange={setAiRailWidth}
       />
@@ -1341,7 +1355,12 @@ export default function PdfFlipReader({
         onZoomIn={() => setZoom((value) => clampZoom(value + 0.1))}
         onResetZoom={() => setZoom(1)}
         onToggleSpeech={() => void toggleSpeech()}
-        onToggleAi={() => setAiOpen((value) => !value)}
+        onToggleAi={() => {
+          if (!aiOpen) {
+            setAiOpeningSpread(visibleEnd > position.page ? { first: position.page, last: visibleEnd } : null);
+          }
+          setAiOpen(!aiOpen);
+        }}
         onToggleAnnotations={toggleAnnotations}
         onToggleNotes={() => setNotesListOpen((value) => !value)}
         onToggleSearch={() => setSearchOpen((value) => !value)}

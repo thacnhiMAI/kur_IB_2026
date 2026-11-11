@@ -14,6 +14,7 @@ import {
   X
 } from "lucide-react";
 import * as katex from "katex";
+import Image from "next/image";
 import { type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 
 export type ReaderAiScope = "page" | "document";
@@ -80,7 +81,9 @@ export function ReaderAiPanel({
   bookId,
   contentId,
   page,
+  lastVisiblePage,
   getText,
+  getPageImage,
   onClose,
   onWidthChange
 }: {
@@ -89,7 +92,9 @@ export function ReaderAiPanel({
   bookId: string;
   contentId: string | null;
   page: number;
+  lastVisiblePage: number;
   getText: (scope: ReaderAiScope, page?: number) => Promise<string>;
+  getPageImage: (page: number) => Promise<File>;
   onClose: () => void;
   onWidthChange: (width: number) => void;
 }) {
@@ -97,6 +102,8 @@ export function ReaderAiPanel({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [expandedGroup, setExpandedGroup] = useState<string>("document");
   const [question, setQuestion] = useState("");
+  const [usePageImage, setUsePageImage] = useState(false);
+  const [illustration, setIllustration] = useState<{ conversationId: string; src: string } | null>(null);
   const [error, setError] = useState("");
   const [width, setWidth] = useState(340);
   const [jobs, setJobs] = useState<Record<string, JobState>>({});
@@ -116,15 +123,21 @@ export function ReaderAiPanel({
       list.push(item);
       groups.set(item.page, list);
     }
-    if (!groups.has(page)) groups.set(page, []);
+    for (let visiblePage = page; visiblePage <= lastVisiblePage; visiblePage++) {
+      if (!groups.has(visiblePage)) groups.set(visiblePage, []);
+    }
     return [...groups.entries()]
       .map(([pageNumber, items]) => ({
         page: pageNumber,
+        visible: pageNumber >= page && pageNumber <= lastVisiblePage,
         items: items.sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt)),
         updatedAt: items[0]?.updatedAt ?? "1970-01-01"
       }))
-      .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
-  }, [conversations, page]);
+      .sort((a, b) => {
+        if (a.visible && b.visible) return a.page - b.page;
+        return Number(b.visible) - Number(a.visible) || +new Date(b.updatedAt) - +new Date(a.updatedAt);
+      });
+  }, [conversations, page, lastVisiblePage]);
 
   const documentConversations = useMemo(
     () => conversations.filter((item) => item.scope === "document").sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt)),
@@ -203,7 +216,7 @@ export function ReaderAiPanel({
     setJobs((current) => { const next = { ...current }; delete next[conversationId]; return next; });
   }
 
-  async function run(action: ReaderAiAction) {
+  async function run(action: ReaderAiAction, output: "text" | "image" = "text") {
     if (!active || jobs[active.id]?.status === "running") return;
     setError("");
     const conversation = active;
@@ -214,41 +227,53 @@ export function ReaderAiPanel({
         : action === "explain"
           ? "Объясни этот материал простыми словами."
           : "Составь вопросы для самопроверки.";
-    if (action === "ask" && !userContent) return;
+    if (output === "text" && action === "ask" && !userContent) return;
+    const sourcePage = conversation.scope === "page" ? conversation.page : null;
+    if (output === "image" && !sourcePage) return;
+    const sendImage = Boolean(sourcePage && (usePageImage || output === "image"));
 
     const jobId = crypto.randomUUID();
     const controller = new AbortController();
     controllersRef.current.set(conversation.id, controller);
     setJobs((current) => ({ ...current, [conversation.id]: { jobId, status: "running" } }));
     const optimisticId = `local-${jobId}`;
-    setConversations((current) => current.map((item) => item.id === conversation.id ? {
-      ...item,
-      messages: [...item.messages, { id: optimisticId, role: "user", content: userContent, createdAt: new Date().toISOString() }]
-    } : item));
+    if (output === "text") {
+      setConversations((current) => current.map((item) => item.id === conversation.id ? {
+        ...item,
+        messages: [...item.messages, { id: optimisticId, role: "user", content: userContent, createdAt: new Date().toISOString() }]
+      } : item));
+    }
     if (action === "ask") setQuestion("");
 
     try {
-      const text = (await getText(conversation.scope, conversation.page ?? undefined)).trim();
-      if (!text) throw new Error("В PDF не удалось получить текст.");
+      const text = sendImage ? "" : (await getText(conversation.scope, conversation.page ?? undefined)).trim();
+      if (!sendImage && !text) throw new Error("В PDF не удалось получить текст.");
+      const requestPayload = JSON.stringify({
+        action, output, scope: conversation.scope, title, text, bookId, jobId,
+        page: sourcePage ?? undefined,
+        question: output === "image" ? question.trim() || undefined : action === "ask" ? userContent : undefined,
+        conversationId: conversation.id
+      });
+      const form = sendImage && sourcePage ? new FormData() : null;
+      if (form && sourcePage) {
+        form.set("image", await getPageImage(sourcePage));
+        form.set("payload", requestPayload);
+      }
       const response = await fetch("/api/reader-ai", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: form ? undefined : { "Content-Type": "application/json" },
         signal: controller.signal,
-        body: JSON.stringify({
-          action,
-          scope: conversation.scope,
-          title,
-          page: conversation.scope === "page" ? conversation.page ?? page : undefined,
-          text,
-          question: action === "ask" ? userContent : undefined,
-          conversationId: conversation.id,
-          bookId,
-          jobId
-        })
+        body: form ?? requestPayload
       });
-      const payload = await response.json().catch(() => ({})) as { answer?: string; error?: string };
-      if (!response.ok || !payload.answer) throw new Error(payload.error || `HTTP ${response.status}`);
-      await load();
+      const payload = await response.json().catch(() => ({})) as { answer?: string; image?: string; error?: string };
+      if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+      if (output === "image") {
+        if (!payload.image) throw new Error("OpenAI не вернул изображение.");
+        setIllustration({ conversationId: conversation.id, src: `data:image/jpeg;base64,${payload.image}` });
+      } else {
+        if (!payload.answer) throw new Error("AI Reader не вернул ответ.");
+        await load();
+      }
       setJobs((current) => ({ ...current, [conversation.id]: { jobId, status: "done" } }));
       showToast(`${conversation.scope === "document" ? "PDF" : `Страница ${conversation.page}`}: AI Reader завершил ответ.`);
     } catch (cause) {
@@ -307,7 +332,7 @@ export function ReaderAiPanel({
           {expandedGroup === key ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           <span>{label}</span>
         </button>
-        <button type="button" className="reader-ai-icon-button" onClick={() => void createConversation(scope, pageNumber)} title="Новый разговор"><Plus size={16} /></button>
+        <button type="button" className="reader-ai-icon-button" onClick={() => void createConversation(scope, pageNumber)} title="Новый разговор" aria-label={`Новый разговор: ${label}`}><Plus size={16} /></button>
       </div>
       {expandedGroup === key ? (
         <div className="reader-ai-conversation-list">
@@ -339,12 +364,27 @@ export function ReaderAiPanel({
             </header>
             <div className="reader-ai-chat-messages">
               {active.messages.length ? active.messages.map((message) => <div key={message.id} className={`reader-ai-message is-${message.role}`}><LatexMessage content={message.content} /></div>) : <p className="reader-rail-empty">Начните разговор с AI Reader.</p>}
+              {illustration?.conversationId === active.id ? (
+                <figure className="reader-ai-message is-assistant">
+                  <Image src={illustration.src} alt={`Иллюстрация к странице ${active.page}`} width={1024} height={1024} unoptimized className="h-auto max-w-full rounded-lg" />
+                  <a href={illustration.src} download={`page-${active.page}-illustration.jpg`} className="underline">Скачать иллюстрацию</a>
+                </figure>
+              ) : null}
               {activeRunning ? <div className="reader-ai-message is-assistant is-loading"><LoaderCircle size={15} className="reader-ai-spin" /> AI Reader думает…</div> : null}
             </div>
             <div className="reader-ai-quick-actions">
               <button type="button" disabled={activeRunning} onClick={() => void run("summary")}>Кратко</button>
               <button type="button" disabled={activeRunning} onClick={() => void run("explain")}>Объяснить</button>
               <button type="button" disabled={activeRunning} onClick={() => void run("questions")}>Вопросы</button>
+              {active.scope === "page" && active.page ? (
+                <>
+                  <button type="button" disabled={activeRunning} onClick={() => void run("explain", "image")}>Иллюстрация</button>
+                  <label className="flex w-full items-center gap-2 text-xs text-[var(--text-secondary)]">
+                    <input type="checkbox" checked={usePageImage} onChange={(event) => setUsePageImage(event.target.checked)} disabled={activeRunning} />
+                    Отправлять изображение страницы в OpenAI
+                  </label>
+                </>
+              ) : null}
             </div>
             {error ? <p className="reader-ai-error">{error}</p> : null}
             <div className="reader-ai-composer">
