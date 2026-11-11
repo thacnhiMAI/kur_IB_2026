@@ -157,7 +157,7 @@ export function ARClientShell({
       <ARPresenter book={book} mode={effectiveMode} reason={decision.reason} />
 
       {effectiveMode === "webxr" ? (
-        <ARPreviewWebXR book={book} onFallback={handleWebXRFallback} />
+        <ARPreviewWebXR book={book} pdfUrl={pdfUrl} onFallback={handleWebXRFallback} />
       ) : effectiveMode === "2d-fallback" ? (
         <ARPreview2D book={book} />
       ) : (

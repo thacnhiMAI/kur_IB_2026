@@ -30,12 +30,15 @@ export default async function ARBookPage({ params }: { params: Promise<{ slug: s
               <p className="concept-kicker">3D / AR studio</p>
               <h1 className="text-3xl font-semibold text-[var(--text-primary)]">{book.title}</h1>
               <p className="max-w-3xl text-sm leading-7 text-[var(--text-secondary)]">
-                В AR через камеру видны обложка и описание. На совместимом телефоне AR-очки не нужны.
+                Откройте обложку и описание в AR. На совместимом телефоне AR-очки не нужны.
               </p>
               {book.readingMode === "internal" ? (
                 <p className="max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">
-                  Чтобы читать страницы, выйдите из режима камеры и нажмите «Читать PDF».
+                  Нажмите «Читать PDF в AR» ниже, чтобы листать страницы в пространстве. Для чтения на экране выберите «Читать PDF».
                 </p>
+              ) : null}
+              {book.readingMode === "internal" && !isAuthenticated ? (
+                <p className="text-sm text-[var(--text-secondary)]">Войдите в аккаунт, чтобы открыть PDF в AR.</p>
               ) : null}
             </div>
             <div className="flex flex-wrap gap-3">

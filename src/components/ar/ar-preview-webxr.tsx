@@ -8,9 +8,11 @@ type WebXRFallbackReason = "camera-denied" | "renderer-init-failed";
 
 export function ARPreviewWebXR({
   book,
+  pdfUrl,
   onFallback
 }: {
   book: ARBookPayload;
+  pdfUrl?: string | null;
   onFallback: (reason: WebXRFallbackReason) => void;
 }) {
   const sessionRef = React.useRef<XRSession | null>(null);
@@ -37,7 +39,7 @@ export function ARPreviewWebXR({
     };
   }, [handleSessionEnd]);
 
-  async function handleStart() {
+  async function handleStart(mode: "preview" | "reader") {
     if (isStarting || sessionRef.current) {
       return;
     }
@@ -66,9 +68,15 @@ export function ARPreviewWebXR({
       }
       sessionRef.current = nextSession;
       nextSession.addEventListener("end", handleSessionEnd, { once: true });
-      const { attachBookScene } = await import("./webxr-scene");
-      if (sessionRef.current !== nextSession) return;
-      await attachBookScene(nextSession, book);
+      if (mode === "reader" && pdfUrl) {
+        const { attachReaderScene } = await import("./webxr-reader-scene");
+        if (sessionRef.current !== nextSession) return;
+        await attachReaderScene(nextSession, pdfUrl);
+      } else {
+        const { attachBookScene } = await import("./webxr-scene");
+        if (sessionRef.current !== nextSession) return;
+        await attachBookScene(nextSession, book);
+      }
       if (sessionRef.current !== nextSession) return;
 
       setStatus(`AR session is active for "${book.title}".`);
@@ -103,14 +111,27 @@ export function ARPreviewWebXR({
           <p className="text-base font-medium text-white">{book.title}</p>
           <p className="max-w-2xl text-sm leading-7 text-slate-300">{status}</p>
         </div>
-        <button
-          type="button"
-          onClick={handleStart}
-          disabled={isStarting}
-          className="inline-flex items-center justify-center rounded-xl bg-emerald-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-wait disabled:bg-emerald-300/60"
-        >
-          {isStarting ? "Starting AR..." : "Start AR"}
-        </button>
+        <div className="flex flex-wrap gap-3">
+          {pdfUrl ? (
+            <button
+              type="button"
+              onClick={() => void handleStart("reader")}
+              disabled={isStarting}
+              className="inline-flex items-center justify-center rounded-xl bg-emerald-400 px-4 py-3 text-sm font-semibold text-slate-950 hover:bg-emerald-300 disabled:opacity-60"
+            >
+              Читать PDF в AR
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => void handleStart("preview")}
+            disabled={isStarting}
+            className="inline-flex items-center justify-center rounded-xl border border-emerald-400/40 px-4 py-3 text-sm font-semibold text-emerald-200 hover:bg-emerald-400/10 disabled:opacity-60"
+          >
+            {isStarting ? "Starting AR..." : "Start AR"}
+          </button>
+        </div>
+        {pdfUrl ? <p className="text-sm text-slate-300">В режиме чтения нажимайте стрелки под страницей, чтобы листать PDF.</p> : null}
       </div>
     </div>
   );
