@@ -9,7 +9,7 @@ export function isReaderPageImage(value: unknown): value is File {
 }
 
 export async function requestPageVision(input: {
-  image: File;
+  image?: File;
   userId: string;
   instructions: string;
   prompt: string;
@@ -19,8 +19,12 @@ export async function requestPageVision(input: {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) throw new Error("OpenAI vision requires OPENAI_API_KEY.");
 
-  const encoded = Buffer.from(await input.image.arrayBuffer()).toString("base64");
   const generateImage = input.output === "image";
+  const imageInput = input.image && !generateImage ? [{
+    type: "input_image",
+    image_url: `data:${input.image.type};base64,${Buffer.from(await input.image.arrayBuffer()).toString("base64")}`,
+    detail: "high"
+  }] : [];
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -33,7 +37,7 @@ export async function requestPageVision(input: {
         role: "user",
         content: [
           { type: "input_text", text: input.prompt },
-          { type: "input_image", image_url: `data:${input.image.type};base64,${encoded}`, detail: "high" }
+          ...imageInput
         ]
       }],
       ...(generateImage ? {

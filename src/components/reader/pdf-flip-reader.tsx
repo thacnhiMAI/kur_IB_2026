@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { PageFlip, type SizeType } from "page-flip";
 import { pdfjs } from "react-pdf";
 
-import { ReaderAiPanel } from "@/components/reader/reader-ai-panel";
+import { ReaderAiPanel, type ReaderAiAttachment } from "@/components/reader/reader-ai-panel";
+import { ReaderSelectionSearch } from "@/components/reader/reader-selection-search";
 import { ReaderFloatingToolbar } from "@/components/reader/reader-floating-toolbar";
 import { ReaderAnnotationsPanel } from "@/components/reader/reader-annotations-panel";
 import { ReaderNotesRail } from "@/components/reader/reader-notes-rail";
@@ -16,7 +18,7 @@ import {
   readAppSettingsFromBrowser
 } from "@/lib/preferences/settings";
 import { openReaderPageCache, type ReaderDocumentInfo } from "@/lib/reading/reader-page-cache";
-import { readerPageFile } from "@/lib/reading/page-image";
+import { cropReaderPage, readerImageBounds, readerPageFile } from "@/lib/reading/page-image";
 
 type PdfFlipReaderProps = {
   title: string;
@@ -250,6 +252,7 @@ export default function PdfFlipReader({
     show: (page: number, width: number, prefetch?: boolean) => Promise<void>;
     raster: (page: number, width: number) => Promise<Blob>;
     readText: (page: number) => Promise<void>;
+    selectionText: (page: number, rect: HighlightRect, aspect: number) => Promise<string>;
     retain: (first: number, last: number) => void;
   } | null>(null);
   const ocrJobsRef = useRef<Map<number, Promise<string>>>(new Map());
@@ -277,7 +280,13 @@ export default function PdfFlipReader({
   const [annotationsOpen, setAnnotationsOpen] = useState(false);
   const [notesListOpen, setNotesListOpen] = useState(false);
   const [aiRailWidth, setAiRailWidth] = useState(340);
-  const [pendingHighlight, setPendingHighlight] = useState<{ page: number; rect: HighlightRect } | null>(null);
+  const [pendingHighlight, setPendingHighlight] = useState<{
+    page: number; rect: HighlightRect; aspect: number; anchor: { x: number; y: number };
+  } | null>(null);
+  const [editingHighlight, setEditingHighlight] = useState(false);
+  const [selectionAttachment, setSelectionAttachment] = useState<ReaderAiAttachment | null>(null);
+  const [attachingSelection, setAttachingSelection] = useState(false);
+  const [selectionSearch, setSelectionSearch] = useState<{ anchor: { x: number; y: number }; getImage: () => Promise<File>; getText: () => Promise<string> } | null>(null);
   const [selectedAnnotation, setSelectedAnnotation] = useState<AnnotationRecord | null>(null);
   const [highlightContextMenu, setHighlightContextMenu] = useState<HighlightContextMenu>(null);
   const [annotations, setAnnotations] = useState<AnnotationRecord[]>([]);
@@ -425,7 +434,6 @@ export default function PdfFlipReader({
 
   useEffect(() => {
     stopSpeech();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [position.page]);
 
   useEffect(() => {
@@ -489,6 +497,29 @@ export default function PdfFlipReader({
       const extracted = extractNativePdfText(content.items as unknown[]);
       pageTextsRef.current[number] = extracted.text;
       pageMathHintsRef.current[number] = extracted.hasMath;
+    }
+
+    async function selectionText(number: number, rect: HighlightRect, aspect: number) {
+      const pdf = await getDocument();
+      const page = await pdf.getPage(number);
+      const viewport = page.getViewport({ scale: 1 });
+      const area = readerImageBounds(rect, aspect, viewport.width, viewport.height);
+      const content = await page.getTextContent();
+      const selected: string[] = [];
+      for (const item of content.items) {
+        if (!("str" in item) || !item.str.trim()) continue;
+        const [a, b, , , x, y] = pdfjs.Util.transform(viewport.transform, item.transform);
+        const left = x;
+        const right = x + item.width;
+        const top = y - item.height;
+        if (Math.min(right, area.right) - Math.max(left, area.left) <= 0 ||
+            Math.min(y, area.bottom) - Math.max(top, area.top) <= item.height / 2) continue;
+        // A PDF text item may be an entire line. OCR handles partial items
+        // and rotated/vertical text instead of returning extra words.
+        if (left < area.left - 1 || right > area.right + 1 || a <= 0 || Math.abs(b) > .01 || item.dir === "ttb") return "";
+        selected.push(item.str);
+      }
+      return selected.join(" ").trim();
     }
 
     function raster(number: number, width: number) {
@@ -567,7 +598,7 @@ export default function PdfFlipReader({
         image.width = undefined;
       }
     }
-    const loader = { show, raster, readText, retain };
+    const loader = { show, raster, readText, retain, selectionText };
     pageLoaderRef.current = loader;
 
     const clip = document.createElement("div");
@@ -663,9 +694,15 @@ export default function PdfFlipReader({
           // Browser may release automatically.
         }
         pointerId = null;
-        if (highlight.width > 0.008 && highlight.height > 0.006) {
+        if (event.type === "pointerup" && highlight.width > 0.008 && highlight.height > 0.006) {
           setSelectedAnnotation(null);
-          setPendingHighlight({ page: pageNumber, rect: highlight });
+          setEditingHighlight(false);
+          setSelectionSearch(null);
+          setPendingHighlight({
+            page: pageNumber, rect: highlight, aspect: layer.clientWidth / layer.clientHeight,
+            anchor: { x: Math.min(rect.left + (highlight.x + highlight.width) * rect.width + 8, document.documentElement.clientWidth - 126),
+              y: Math.min(event.clientY, document.documentElement.clientHeight - 174) }
+          });
           setAnnotationsOpen(true);
           annotationModeRef.current = true;
         }
@@ -977,6 +1014,29 @@ export default function PdfFlipReader({
     if (!loader) throw new Error("Страница PDF ещё не готова.");
     return readerPageFile(await loader.raster(pageNumber, OCR_IMAGE_WIDTH), pageNumber);
   }, []);
+
+  function getSelectionImage(selection: NonNullable<typeof pendingHighlight>) {
+    const loader = pageLoaderRef.current;
+    if (!loader) return Promise.reject(new Error("Страница PDF ещё не готова."));
+    return loader.raster(selection.page, 2200).then((image) =>
+      cropReaderPage(image, selection.page, selection.rect, selection.aspect));
+  }
+
+  async function attachSelection(selection: NonNullable<typeof pendingHighlight>) {
+    if (attachingSelection) return;
+    setAttachingSelection(true);
+    setToolMessage("");
+    try {
+      const file = await getSelectionImage(selection);
+      setSelectionAttachment({ page: selection.page, file });
+      setAiOpen(true);
+      setPendingHighlight((current) => current === selection ? null : current);
+    } catch (cause) {
+      setToolMessage(cause instanceof Error ? cause.message : "Не удалось прикрепить выделение.");
+    } finally {
+      setAttachingSelection(false);
+    }
+  }
 
   const ensurePageText = useCallback(async (pageNumber: number) => {
     const loader = pageLoaderRef.current;
@@ -1322,7 +1382,8 @@ export default function PdfFlipReader({
         page={position.landscape ? position.page : openingSpread?.first ?? position.page}
         lastVisiblePage={position.landscape ? visibleEnd : openingSpread?.last ?? position.page}
         getText={prepareAiText}
-        getPageImage={getPageImage}
+        selectionAttachment={selectionAttachment}
+        onSelectionHandled={() => setSelectionAttachment(null)}
         onClose={() => setAiOpen(false)}
         onWidthChange={setAiRailWidth}
       />
@@ -1378,8 +1439,25 @@ export default function PdfFlipReader({
         onClose={() => setSearchOpen(false)}
       />
 
+      {pendingHighlight && !editingHighlight ? createPortal(selectionSearch ? (
+        <ReaderSelectionSearch {...selectionSearch} onClose={() => setSelectionSearch(null)} />
+      ) : (
+        <div className="reader-highlight-context-menu reader-selection-actions"
+          style={{ left: Math.max(8, pendingHighlight.anchor.x), top: Math.max(8, pendingHighlight.anchor.y) }}
+          onKeyDown={(event) => { if (event.key === "Escape") setPendingHighlight(null); }}>
+          {aiEnabled ? <button type="button" disabled={attachingSelection} onClick={() => void attachSelection(pendingHighlight)}>+ to AI</button> : null}
+          <button type="button" onClick={() => setSelectionSearch({
+            anchor: pendingHighlight.anchor,
+            getImage: () => getSelectionImage(pendingHighlight),
+            getText: () => pageLoaderRef.current?.selectionText(pendingHighlight.page, pendingHighlight.rect, pendingHighlight.aspect) ?? Promise.resolve("")
+          })}>Search</button>
+          <button type="button" onClick={() => setEditingHighlight(true)}>Заметка</button>
+          <button type="button" onClick={() => setPendingHighlight(null)}>Отмена</button>
+        </div>
+      ), fullscreenActive && sectionRef.current ? sectionRef.current : document.body) : null}
+
       <ReaderAnnotationsPanel
-        open={Boolean(pendingHighlight || selectedAnnotation)}
+        open={Boolean((pendingHighlight && editingHighlight) || selectedAnnotation)}
         bookId={bookId}
         contentId={contentId}
         page={pendingHighlight?.page ?? selectedAnnotation?.page ?? position.page}

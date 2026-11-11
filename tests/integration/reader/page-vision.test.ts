@@ -60,15 +60,19 @@ describe("OpenAI page vision", () => {
     const response = await askReader(pageRequest("reader-ai", evenPage));
     expect(await response.json()).toEqual({ answer: "Formula: $x^2$", conversationId: "even" });
     const body = JSON.parse(provider.mock.calls[0][1].body);
-    expect(body.input[0].content[0].text).toContain("Page 110");
+    expect(body.input[0].content[0].text).toContain("page 110");
     expect(transaction).toHaveBeenCalledOnce();
   });
 
-  it("uses the image tool when an illustration is requested", async () => {
+  it("generates an image from the prompt alone", async () => {
     provider.mockResolvedValueOnce(Response.json({ output: [{ type: "image_generation_call", result: "aW1hZ2U=" }] }));
-    const response = await askReader(pageRequest("reader-ai", { ...evenPage, output: "image" }));
+    const response = await askReader(new Request("https://reader.example/api/reader-ai", {
+      method: "POST", body: JSON.stringify({ ...evenPage, action: "ask", question: "Draw a blue cat", output: "image" })
+    }));
     expect(await response.json()).toEqual({ image: "aW1hZ2U=", mimeType: "image/jpeg" });
-    expect(JSON.parse(provider.mock.calls[0][1].body).tool_choice).toEqual({ type: "image_generation" });
+    const body = JSON.parse(provider.mock.calls[0][1].body);
+    expect(body.tool_choice).toEqual({ type: "image_generation" });
+    expect(body.input[0].content).toEqual([{ type: "input_text", text: "Draw a blue cat" }]);
     expect(transaction).not.toHaveBeenCalled();
   });
 });

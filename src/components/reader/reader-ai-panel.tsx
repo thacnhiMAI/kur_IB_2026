@@ -15,7 +15,8 @@ import {
 } from "lucide-react";
 import * as katex from "katex";
 import Image from "next/image";
-import { type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type ClipboardEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import { prepareReaderImage } from "@/lib/reading/page-image";
 
 export type ReaderAiScope = "page" | "document";
 type ReaderAiAction = "summary" | "explain" | "questions" | "ask";
@@ -29,10 +30,17 @@ type Conversation = {
   updatedAt: string;
   messages: Message[];
 };
-type JobState = { jobId: string; status: "running" | "done" | "error" };
+type JobState = { jobId: string; status: "running" | "done" | "error"; startedAt: number; finishedAt?: number };
+export type ReaderAiAttachment = { page: number; file: File };
 type Toast = { id: string; text: string };
 
 const WIDTH_KEY = "smart-library:reader-ai-rail-width:v1";
+const IMAGE_COMMAND = /(?:^|\s)#create_immage(?=\s|$)/gi;
+
+function elapsedLabel(ms: number) {
+  const seconds = Math.floor(Math.max(0, ms) / 1000);
+  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+}
 
 function timeLabel(value: string) {
   const date = new Date(value);
@@ -83,7 +91,8 @@ export function ReaderAiPanel({
   page,
   lastVisiblePage,
   getText,
-  getPageImage,
+  selectionAttachment,
+  onSelectionHandled,
   onClose,
   onWidthChange
 }: {
@@ -94,15 +103,19 @@ export function ReaderAiPanel({
   page: number;
   lastVisiblePage: number;
   getText: (scope: ReaderAiScope, page?: number) => Promise<string>;
-  getPageImage: (page: number) => Promise<File>;
+  selectionAttachment?: ReaderAiAttachment | null;
+  onSelectionHandled?: () => void;
   onClose: () => void;
   onWidthChange: (width: number) => void;
 }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [expandedGroup, setExpandedGroup] = useState<string>("document");
-  const [question, setQuestion] = useState("");
-  const [usePageImage, setUsePageImage] = useState(false);
+  const [questions, setQuestions] = useState<Record<string, string>>({});
+  const [attachments, setAttachments] = useState<Record<string, File | undefined>>({});
+  const [preview, setPreview] = useState<string | null>(null);
+  const [now, setNow] = useState(0);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const [illustration, setIllustration] = useState<{ conversationId: string; src: string } | null>(null);
   const [error, setError] = useState("");
   const [width, setWidth] = useState(340);
@@ -114,6 +127,23 @@ export function ReaderAiPanel({
   const active = useMemo(() => conversations.find((item) => item.id === activeId) ?? null, [conversations, activeId]);
   const activeJob = active ? jobs[active.id] : undefined;
   const activeRunning = activeJob?.status === "running";
+  const attachment = active ? attachments[active.id] : undefined;
+  const question = active ? questions[active.id] ?? "" : "";
+
+  useEffect(() => {
+    setPreview(null);
+    if (!attachment) return;
+    const url = URL.createObjectURL(attachment);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [attachment]);
+
+  useEffect(() => {
+    if (!activeRunning) return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 250);
+    return () => window.clearInterval(timer);
+  }, [activeRunning, activeJob?.jobId]);
 
   const pageGroups = useMemo(() => {
     const groups = new Map<number, Conversation[]>();
@@ -144,11 +174,14 @@ export function ReaderAiPanel({
     [conversations]
   );
 
-  async function load() {
+  async function load(preserveNew = false) {
     const response = await fetch(`/api/reader-ai/conversations?bookId=${encodeURIComponent(bookId)}`, { cache: "no-store" });
     if (!response.ok) return;
     const result = await response.json() as { ok?: boolean; conversations?: Conversation[] };
-    if (result.ok) setConversations(result.conversations ?? []);
+    if (result.ok) setConversations((current) => {
+      const remote = result.conversations ?? [];
+      return preserveNew ? [...remote, ...current.filter((item) => !remote.some(({ id }) => id === item.id))] : remote;
+    });
   }
 
   useEffect(() => {
@@ -156,7 +189,7 @@ export function ReaderAiPanel({
       setActiveId(null);
       return;
     }
-    void load();
+    void load(true).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, bookId]);
 
@@ -181,7 +214,7 @@ export function ReaderAiPanel({
     window.setTimeout(() => setToasts((current) => current.filter((item) => item.id !== id)), 8000);
   }
 
-  async function createConversation(scope: ReaderAiScope, pageNumber?: number) {
+  async function createConversation(scope: ReaderAiScope, pageNumber?: number, activate = true): Promise<Conversation | undefined> {
     const response = await fetch("/api/reader-ai/conversations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -190,8 +223,35 @@ export function ReaderAiPanel({
     const result = await response.json();
     if (!response.ok || !result.ok || !result.conversation) return;
     setConversations((current) => [result.conversation, ...current]);
-    setActiveId(result.conversation.id);
+    if (activate) setActiveId(result.conversation.id);
+    return result.conversation;
   }
+
+  useEffect(() => {
+    if (!open || !selectionAttachment) return;
+    let cancelled = false;
+    const { page: source, file } = selectionAttachment;
+    const existing = active?.scope === "page" && active.page === source
+      ? active : conversations.find((item) => item.scope === "page" && item.page === source);
+    void (async () => {
+      try {
+        const conversation = existing ?? await createConversation("page", source, false);
+        if (cancelled) return;
+        if (!conversation) throw new Error("Не удалось открыть разговор для выбранной страницы.");
+        setAttachments((current) => ({ ...current, [conversation.id]: file }));
+        setActiveId(conversation.id);
+        setError("");
+        requestAnimationFrame(() => composerRef.current?.focus());
+      } catch (cause) {
+        if (!cancelled) showToast(cause instanceof Error ? cause.message : "Не удалось прикрепить изображение.");
+      } finally {
+        if (!cancelled) onSelectionHandled?.();
+      }
+    })();
+    return () => { cancelled = true; };
+    // A new selection is the only trigger; conversation creation updates the list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, selectionAttachment]);
 
   async function removeConversation(id: string) {
     const running = jobs[id];
@@ -199,8 +259,23 @@ export function ReaderAiPanel({
     const response = await fetch(`/api/reader-ai/conversations?id=${encodeURIComponent(id)}`, { method: "DELETE" });
     if (!response.ok) return;
     setConversations((current) => current.filter((item) => item.id !== id));
+    setAttachments((current) => { const next = { ...current }; delete next[id]; return next; });
+    setQuestions((current) => { const next = { ...current }; delete next[id]; return next; });
     setJobs((current) => { const next = { ...current }; delete next[id]; return next; });
     if (activeId === id) setActiveId(null);
+  }
+
+  function pasteImage(event: ClipboardEvent) {
+    if (!active) return;
+    const image = Array.from(event.clipboardData.files).find((file) => file.type.startsWith("image/"))
+      ?? Array.from(event.clipboardData.items ?? []).find((item) => item.kind === "file" && item.type.startsWith("image/"))?.getAsFile();
+    if (!image) return;
+    event.preventDefault();
+    const id = active.id;
+    void prepareReaderImage(image, "clipboard-image").then((file) => {
+      setAttachments((current) => ({ ...current, [id]: file }));
+      setError("");
+    }).catch(() => setError("Не удалось подготовить изображение из буфера обмена."));
   }
 
   async function stopJob(conversationId: string) {
@@ -216,8 +291,8 @@ export function ReaderAiPanel({
     setJobs((current) => { const next = { ...current }; delete next[conversationId]; return next; });
   }
 
-  async function run(action: ReaderAiAction, output: "text" | "image" = "text") {
-    if (!active || jobs[active.id]?.status === "running") return;
+  async function run(action: ReaderAiAction) {
+    if (!active || controllersRef.current.has(active.id)) return;
     setError("");
     const conversation = active;
     const userContent = action === "ask"
@@ -227,15 +302,19 @@ export function ReaderAiPanel({
         : action === "explain"
           ? "Объясни этот материал простыми словами."
           : "Составь вопросы для самопроверки.";
-    if (output === "text" && action === "ask" && !userContent) return;
+    if (action === "ask" && !userContent) return;
+    const prompt = action === "ask" ? userContent.replace(IMAGE_COMMAND, " ").trim() : userContent;
+    const output = prompt !== userContent && action === "ask" ? "image" : "text";
+    if (!prompt) { setError("Добавьте описание после #create_immage."); return; }
     const sourcePage = conversation.scope === "page" ? conversation.page : null;
-    if (output === "image" && !sourcePage) return;
-    const sendImage = Boolean(sourcePage && (usePageImage || output === "image"));
+    const image = output === "text" && action === "ask" ? attachment : undefined;
 
     const jobId = crypto.randomUUID();
     const controller = new AbortController();
     controllersRef.current.set(conversation.id, controller);
-    setJobs((current) => ({ ...current, [conversation.id]: { jobId, status: "running" } }));
+    const startedAt = Date.now();
+    setNow(startedAt);
+    setJobs((current) => ({ ...current, [conversation.id]: { jobId, status: "running", startedAt } }));
     const optimisticId = `local-${jobId}`;
     if (output === "text") {
       setConversations((current) => current.map((item) => item.id === conversation.id ? {
@@ -243,20 +322,20 @@ export function ReaderAiPanel({
         messages: [...item.messages, { id: optimisticId, role: "user", content: userContent, createdAt: new Date().toISOString() }]
       } : item));
     }
-    if (action === "ask") setQuestion("");
+    if (action === "ask") setQuestions((current) => ({ ...current, [conversation.id]: "" }));
 
     try {
-      const text = sendImage ? "" : (await getText(conversation.scope, conversation.page ?? undefined)).trim();
-      if (!sendImage && !text) throw new Error("В PDF не удалось получить текст.");
+      const text = image || output === "image" ? "" : (await getText(conversation.scope, conversation.page ?? undefined)).trim();
+      if (!image && output === "text" && !text) throw new Error("В PDF не удалось получить текст.");
       const requestPayload = JSON.stringify({
         action, output, scope: conversation.scope, title, text, bookId, jobId,
         page: sourcePage ?? undefined,
-        question: output === "image" ? question.trim() || undefined : action === "ask" ? userContent : undefined,
+        question: action === "ask" ? prompt : undefined,
         conversationId: conversation.id
       });
-      const form = sendImage && sourcePage ? new FormData() : null;
-      if (form && sourcePage) {
-        form.set("image", await getPageImage(sourcePage));
+      const form = image ? new FormData() : null;
+      if (form && image) {
+        form.set("image", image);
         form.set("payload", requestPayload);
       }
       const response = await fetch("/api/reader-ai", {
@@ -266,28 +345,36 @@ export function ReaderAiPanel({
         body: form ?? requestPayload
       });
       const payload = await response.json().catch(() => ({})) as { answer?: string; image?: string; error?: string };
+      if (controller.signal.aborted) return;
       if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
       if (output === "image") {
         if (!payload.image) throw new Error("OpenAI не вернул изображение.");
         setIllustration({ conversationId: conversation.id, src: `data:image/jpeg;base64,${payload.image}` });
       } else {
         if (!payload.answer) throw new Error("AI Reader не вернул ответ.");
-        await load();
+        if (image) setAttachments((current) => current[conversation.id] === image ? { ...current, [conversation.id]: undefined } : current);
+        const answer = payload.answer;
+        const createdAt = new Date().toISOString();
+        setConversations((current) => current.map((item) => item.id === conversation.id ? {
+          ...item, updatedAt: createdAt, messages: [...item.messages, { id: `answer-${jobId}`, role: "assistant", content: answer, createdAt }]
+        } : item));
       }
-      setJobs((current) => ({ ...current, [conversation.id]: { jobId, status: "done" } }));
+      setJobs((current) => current[conversation.id]?.jobId === jobId ? { ...current, [conversation.id]: { jobId, status: "done", startedAt, finishedAt: Date.now() } } : current);
       showToast(`${conversation.scope === "document" ? "PDF" : `Страница ${conversation.page}`}: AI Reader завершил ответ.`);
     } catch (cause) {
       if (controller.signal.aborted || (cause instanceof Error && cause.message === "Cancelled")) {
         setConversations((current) => current.map((item) => item.id === conversation.id
           ? { ...item, messages: item.messages.filter((message) => message.id !== optimisticId) }
           : item));
-        setJobs((current) => { const next = { ...current }; delete next[conversation.id]; return next; });
+        setJobs((current) => { if (current[conversation.id]?.jobId !== jobId) return current; const next = { ...current }; delete next[conversation.id]; return next; });
       } else {
-        setJobs((current) => ({ ...current, [conversation.id]: { jobId, status: "error" } }));
+        setConversations((current) => current.map((item) => item.id === conversation.id ? { ...item, messages: item.messages.filter((message) => message.id !== optimisticId) } : item));
+        if (action === "ask") setQuestions((current) => current[conversation.id] ? current : { ...current, [conversation.id]: userContent });
+        setJobs((current) => ({ ...current, [conversation.id]: { jobId, status: "error", startedAt, finishedAt: Date.now() } }));
         setError(cause instanceof Error ? cause.message : "Не удалось получить ответ AI Reader.");
       }
     } finally {
-      controllersRef.current.delete(conversation.id);
+      if (controllersRef.current.get(conversation.id) === controller) controllersRef.current.delete(conversation.id);
     }
   }
 
@@ -353,7 +440,7 @@ export function ReaderAiPanel({
       <aside className="reader-ai-rail" style={{ width }} aria-label="AI Reader">
         <button type="button" className="reader-ai-resizer" onPointerDown={beginResize} onPointerMove={moveResize} onPointerUp={endResize} onPointerCancel={endResize} aria-label="Изменить ширину AI панели" />
         {active ? (
-          <div className="reader-ai-chat">
+          <div className="reader-ai-chat" onPaste={pasteImage}>
             <header className="reader-ai-chat-header">
               <div><p className="reader-ai-chat-kicker">AI Reader</p><strong>{active.scope === "document" ? "PDF" : `Страница ${active.page}`}</strong></div>
               <div className="reader-ai-chat-actions">
@@ -370,26 +457,29 @@ export function ReaderAiPanel({
                   <a href={illustration.src} download={`page-${active.page}-illustration.jpg`} className="underline">Скачать иллюстрацию</a>
                 </figure>
               ) : null}
-              {activeRunning ? <div className="reader-ai-message is-assistant is-loading"><LoaderCircle size={15} className="reader-ai-spin" /> AI Reader думает…</div> : null}
+              {activeJob ? <div className="reader-ai-message is-assistant is-loading">
+                {activeRunning ? <LoaderCircle size={15} className="reader-ai-spin" /> : activeJob.status === "done" ? <Check size={15} /> : null}
+                {activeRunning ? "Working" : activeJob.status === "done" ? "Worked" : "Failed after"} · {elapsedLabel((activeJob.finishedAt ?? now) - activeJob.startedAt)}
+              </div> : null}
             </div>
             <div className="reader-ai-quick-actions">
               <button type="button" disabled={activeRunning} onClick={() => void run("summary")}>Кратко</button>
               <button type="button" disabled={activeRunning} onClick={() => void run("explain")}>Объяснить</button>
               <button type="button" disabled={activeRunning} onClick={() => void run("questions")}>Вопросы</button>
-              {active.scope === "page" && active.page ? (
-                <>
-                  <button type="button" disabled={activeRunning} onClick={() => void run("explain", "image")}>Иллюстрация</button>
-                  <label className="flex w-full items-center gap-2 text-xs text-[var(--text-secondary)]">
-                    <input type="checkbox" checked={usePageImage} onChange={(event) => setUsePageImage(event.target.checked)} disabled={activeRunning} />
-                    Отправлять изображение страницы в OpenAI
-                  </label>
-                </>
-              ) : null}
             </div>
             {error ? <p className="reader-ai-error">{error}</p> : null}
+            {attachment && preview ? (
+              <div className="reader-ai-attachment">
+                <Image src={preview} alt="Вложение к сообщению" width={112} height={72} unoptimized />
+                <button type="button" aria-label="Убрать вложение" onClick={() => setAttachments((current) => ({ ...current, [active.id]: undefined }))}><X size={15} /></button>
+              </div>
+            ) : null}
             <div className="reader-ai-composer">
-              <textarea value={question} onChange={(event) => setQuestion(event.target.value)} rows={2} placeholder="Спросить AI Reader…" onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey && question.trim() && !activeRunning) { event.preventDefault(); void run("ask"); }
+              <textarea ref={composerRef} aria-label="Сообщение AI Reader" value={question} onChange={(event) => {
+                const value = event.target.value;
+                setQuestions((current) => ({ ...current, [active.id]: value }));
+              }} rows={2} maxLength={2000} placeholder="Вопрос или #create_immage…" onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.nativeEvent.isComposing && !event.shiftKey && question.trim() && !activeRunning) { event.preventDefault(); void run("ask"); }
               }} />
               {activeRunning ? (
                 <button type="button" className="is-stop" onClick={() => void stopJob(active.id)} title="Остановить"><Square size={15} fill="currentColor" /></button>
