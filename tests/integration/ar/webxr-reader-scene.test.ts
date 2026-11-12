@@ -30,7 +30,10 @@ it("renders PDF pages and handles simulated XR pointer selections", async () => 
     .mockImplementation(() => ({ fillText, fillRect: vi.fn() }) as unknown as CanvasRenderingContext2D);
   getPage.mockResolvedValue({
     getViewport: ({ scale }: { scale: number }) => ({ width: 600 * scale, height: 800 * scale }),
-    render: () => ({ promise: Promise.resolve(), cancel: vi.fn() }),
+    render: ({ intent }: { intent?: string }) => {
+      expect(intent).toBe("print");
+      return { promise: Promise.resolve(), cancel: vi.fn() };
+    },
     cleanup: vi.fn()
   });
   getPage.mockRejectedValueOnce(new Error("Range request failed"));
@@ -55,7 +58,9 @@ it("renders PDF pages and handles simulated XR pointer selections", async () => 
     expect(getDocument).not.toHaveBeenCalled();
     tap(-.11, -.18);
     await vi.waitFor(() => expect(fillText).toHaveBeenCalledWith("1 / 2", 256, 64, 470));
-    expect(getDocument).toHaveBeenLastCalledWith({ url: "/api/reading/content/test", disableRange: true });
+    expect(getDocument).toHaveBeenLastCalledWith({
+      url: "/api/reading/content/test", disableRange: true, isOffscreenCanvasSupported: false, isImageDecoderSupported: false
+    });
     const scene = renderer.render.mock.calls[0][0] as Scene;
     const pageMesh = scene.children[0].children[0].children[0] as Mesh;
     const width = pageMesh.scale.x;

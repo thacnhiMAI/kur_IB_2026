@@ -141,7 +141,9 @@ export async function attachReaderScene(
         canvas.height = Math.ceil(viewport.height);
         const context = canvas.getContext("2d");
         if (!context) throw new Error("Canvas unavailable");
-        rendering = page.render({ canvas, canvasContext: context, viewport, background: "#ffffff" });
+        // PDF.js display rendering schedules work on window animation frames,
+        // which can be paused while the XR session is rendering its own frames.
+        rendering = page.render({ canvas, viewport, background: "#ffffff", intent: "print" });
         await rendering.promise;
         if (disposed) return;
         const texture = new THREE.CanvasTexture(canvas);
@@ -163,7 +165,12 @@ export async function attachReaderScene(
           streamingOnly = true;
           status.draw("Повторная загрузка…");
           void loading?.destroy().catch(() => {});
-          loading = pdfjs.getDocument({ url: pdfUrl, disableRange: true });
+          loading = pdfjs.getDocument({
+            url: pdfUrl,
+            disableRange: true,
+            isOffscreenCanvasSupported: false,
+            isImageDecoderSupported: false
+          });
           try {
             pdf = await loading.promise;
             retry = !disposed;
