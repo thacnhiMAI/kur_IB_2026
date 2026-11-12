@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { PageFlip, type SizeType } from "page-flip";
-import { pdfjs } from "react-pdf";
+import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 
 import { ReaderAiPanel, type ReaderAiAttachment } from "@/components/reader/reader-ai-panel";
 import { ReaderSelectionSearch } from "@/components/reader/reader-selection-search";
@@ -48,7 +48,7 @@ type AnnotationRecord = {
 type HighlightContextMenu = { id: string; x: number; y: number } | null;
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
+  "pdfjs-dist/legacy/build/pdf.worker.min.mjs",
   import.meta.url
 ).toString();
 

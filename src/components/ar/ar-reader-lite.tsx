@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import React, { useEffect, useRef, useState } from "react";
-import { pdfjs } from "react-pdf";
+import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 
 import { DEFAULT_AR_COVER } from "@/lib/ar/types";
 import { BookCoverImage } from "@/components/books/book-cover-image";
@@ -12,7 +12,7 @@ import type { ARRendererVariant } from "@/lib/ar/capabilities";
 import type { ARBookPayload } from "@/lib/ar/types";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
+  "pdfjs-dist/legacy/build/pdf.worker.min.mjs",
   import.meta.url
 ).toString();
 

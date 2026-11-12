@@ -15,7 +15,7 @@ const { getDocument, getPage, destroy, renderer } = vi.hoisted(() => ({
   }
 }));
 
-vi.mock("react-pdf", () => ({ pdfjs: { GlobalWorkerOptions: {}, getDocument } }));
+vi.mock("pdfjs-dist/legacy/build/pdf.mjs", () => ({ GlobalWorkerOptions: {}, getDocument }));
 vi.mock("@/components/ar/webxr-scene", () => ({
   createBookDisplay: () => ({ display: new Group(), dispose: vi.fn() })
 }));
