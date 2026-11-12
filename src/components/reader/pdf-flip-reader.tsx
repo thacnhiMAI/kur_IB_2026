@@ -414,9 +414,15 @@ export default function PdfFlipReader({
   }, [fitBookToStage]);
 
   useEffect(() => {
+    let previousDefaultZoom: number | undefined;
     function syncSettings() {
       const settings = readAppSettingsFromBrowser();
-      setZoom(clampZoom(settings.readerZoom));
+      const defaultZoom = clampZoom(settings.readerZoom);
+      // Toolbar preferences share the settings event with the default zoom.
+      if (defaultZoom !== previousDefaultZoom) {
+        previousDefaultZoom = defaultZoom;
+        setZoom(defaultZoom);
+      }
       setSpeechRate(settings.speechRate);
       setAiEnabled(settings.readerAiEnabled);
       if (!settings.readerAiEnabled) setAiOpen(false);
