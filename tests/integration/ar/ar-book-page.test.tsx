@@ -180,6 +180,7 @@ describe("ARBookPage", () => {
     expect(screen.getByText("AR Preview")).toBeInTheDocument();
     expect(screen.getByTestId("ar-preview-webxr")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Start AR" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Читать PDF в AR" })).not.toBeInTheDocument();
   });
 
   it("attaches the book and description to an immersive session", async () => {
@@ -218,6 +219,7 @@ describe("ARBookPage", () => {
     });
     render(await ARBookPage({ params: Promise.resolve({ slug: BOOK_DETAIL_FIXTURE.slug }) }));
     fireEvent.click(await screen.findByRole("button", { name: "Читать PDF в AR" }));
+    expect(screen.queryByRole("button", { name: "Start AR" })).not.toBeInTheDocument();
     await waitFor(() => expect(attachReaderScene).toHaveBeenCalledWith(session, "/api/reading/content/content-1", expect.objectContaining({ title: BOOK_DETAIL_FIXTURE.title }), "reader"));
     expect(requestSession).toHaveBeenCalledWith("immersive-ar", { optionalFeatures: ["hand-tracking"] });
   });

@@ -106,23 +106,13 @@ export function ARPreviewWebXR({
           <p className="max-w-2xl text-sm leading-7 text-slate-300">{status}</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          {pdfUrl ? (
-            <button
-              type="button"
-              onClick={() => void handleStart("reader")}
-              disabled={isStarting}
-              className="inline-flex items-center justify-center rounded-xl bg-emerald-400 px-4 py-3 text-sm font-semibold text-slate-950 hover:bg-emerald-300 disabled:opacity-60"
-            >
-              Читать PDF в AR
-            </button>
-          ) : null}
           <button
             type="button"
-            onClick={() => void handleStart("preview")}
+            onClick={() => void handleStart(pdfUrl ? "reader" : "preview")}
             disabled={isStarting}
-            className="inline-flex items-center justify-center rounded-xl border border-emerald-400/40 px-4 py-3 text-sm font-semibold text-emerald-200 hover:bg-emerald-400/10 disabled:opacity-60"
+            className="inline-flex items-center justify-center rounded-xl bg-emerald-400 px-4 py-3 text-sm font-semibold text-slate-950 hover:bg-emerald-300 disabled:opacity-60"
           >
-            {isStarting ? "Starting AR..." : "Start AR"}
+            {isStarting ? "Starting AR..." : pdfUrl ? "Читать PDF в AR" : "Start AR"}
           </button>
         </div>
         <p className="text-sm text-slate-300">

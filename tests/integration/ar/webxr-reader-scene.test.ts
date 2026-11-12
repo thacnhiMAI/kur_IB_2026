@@ -33,6 +33,7 @@ it("renders PDF pages and handles simulated XR pointer selections", async () => 
     render: () => ({ promise: Promise.resolve(), cancel: vi.fn() }),
     cleanup: vi.fn()
   });
+  getPage.mockRejectedValueOnce(new Error("Range request failed"));
   getDocument.mockReturnValue({ promise: Promise.resolve({ numPages: 2, getPage }), destroy });
   const session = new EventTarget();
   const end = vi.fn(async () => { session.dispatchEvent(new Event("end")); });
@@ -54,6 +55,7 @@ it("renders PDF pages and handles simulated XR pointer selections", async () => 
     expect(getDocument).not.toHaveBeenCalled();
     tap(-.11, -.18);
     await vi.waitFor(() => expect(fillText).toHaveBeenCalledWith("1 / 2", 256, 64, 470));
+    expect(getDocument).toHaveBeenLastCalledWith({ url: "/api/reading/content/test", disableRange: true });
     const scene = renderer.render.mock.calls[0][0] as Scene;
     const pageMesh = scene.children[0].children[0].children[0] as Mesh;
     const width = pageMesh.scale.x;
@@ -64,16 +66,16 @@ it("renders PDF pages and handles simulated XR pointer selections", async () => 
     tap(.178, -.312);
     await vi.waitFor(() => expect(fillText).toHaveBeenCalledWith("2 / 2", 256, 64, 470));
     tap(.178, -.312);
-    expect(getPage.mock.calls).toEqual([[1], [2]]);
+    expect(getPage.mock.calls).toEqual([[1], [1], [2]]);
     tap(-.178, -.312);
-    await vi.waitFor(() => expect(getPage.mock.calls).toEqual([[1], [2], [1]]));
+    await vi.waitFor(() => expect(getPage.mock.calls).toEqual([[1], [1], [2], [1]]));
     tap(.015, .365);
     tap(.178, -.312);
-    expect(getPage.mock.calls).toEqual([[1], [2], [1]]);
+    expect(getPage.mock.calls).toEqual([[1], [1], [2], [1]]);
     tap(.11, -.18);
     expect(end).toHaveBeenCalledOnce();
     expect(renderer.dispose).toHaveBeenCalledOnce();
-    expect(destroy).toHaveBeenCalledOnce();
+    expect(destroy).toHaveBeenCalledTimes(2);
   } finally {
     canvas.mockRestore();
   }

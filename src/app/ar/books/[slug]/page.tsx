@@ -32,7 +32,7 @@ export default async function ARBookPage({ params }: { params: Promise<{ slug: s
               <p className="max-w-3xl text-sm leading-7 text-[var(--text-secondary)]">
                 Откройте обложку и описание в AR. На совместимом телефоне AR-очки не нужны.
               </p>
-              {book.readingMode === "internal" ? (
+              {pdfUrl ? (
                 <p className="max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">
                   Нажмите «Читать PDF в AR» ниже, чтобы листать страницы в пространстве. Для чтения на экране выберите «Читать PDF».
                 </p>

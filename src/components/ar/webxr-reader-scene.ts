@@ -68,8 +68,13 @@ export async function attachReaderScene(
   let pdf: PDFDocumentProxy | undefined;
   let loading: ReturnType<typeof pdfjs.getDocument> | undefined;
   let rendering: RenderTask | undefined;
+  let failedPage: number | null = null;
+  let streamingOnly = false;
   const previous = makeControl("‹", -.178, -.312, .088, () => void showPage(currentPage - 1));
-  const status = makeControl("Загрузка PDF…", 0, -.312, .25);
+  const status = makeControl("Загрузка PDF…", 0, -.312, .25, () => {
+    if (failedPage !== null) void showPage(failedPage);
+    else if (!loading) setMode("reader");
+  });
   const next = makeControl("›", .178, -.312, .088, () => void showPage(currentPage + 1));
   const endSession = () => { void session.end().catch(() => {}); };
   const exit = makeControl("Выйти", .14, .365, .13, endSession);
@@ -102,7 +107,7 @@ export async function attachReaderScene(
     }
     if (reading.visible && pdfUrl && !loading) {
       status.draw("Загрузка PDF…");
-      loading = pdfjs.getDocument({ url: pdfUrl, disableAutoFetch: true, disableStream: true, rangeChunkSize: 256 * 1024 });
+      loading = pdfjs.getDocument({ url: pdfUrl, rangeChunkSize: 256 * 1024 });
       void loading.promise.then((document) => {
         if (disposed) return;
         pdf = document;
@@ -110,7 +115,7 @@ export async function attachReaderScene(
       }).catch(() => {
         if (!disposed) {
           loading = undefined;
-          status.draw("PDF недоступен");
+          status.draw("PDF недоступен · повторить");
         }
       });
     }
@@ -119,6 +124,8 @@ export async function attachReaderScene(
   async function showPage(number: number) {
     if (disposed || busy || !pdf || number < 1 || number > pdf.numPages) return;
     busy = true;
+    failedPage = null;
+    let retry = false;
     status.draw("Загрузка…");
     previous.draw("‹", false);
     next.draw("›", false);
@@ -127,7 +134,8 @@ export async function attachReaderScene(
       if (disposed) return;
       try {
         const base = page.getViewport({ scale: 1 });
-        const viewport = page.getViewport({ scale: 1600 / Math.max(base.width, base.height) });
+        const resolution = streamingOnly ? 1100 : 1600;
+        const viewport = page.getViewport({ scale: resolution / Math.max(base.width, base.height) });
         const canvas = document.createElement("canvas");
         canvas.width = Math.ceil(viewport.width);
         canvas.height = Math.ceil(viewport.height);
@@ -148,8 +156,27 @@ export async function attachReaderScene(
       } finally {
         page.cleanup();
       }
-    } catch {
-      if (!disposed) status.draw("Страница недоступна");
+    } catch (error) {
+      if (!disposed) {
+        console.warn("AR PDF page failed to render", { page: number, error });
+        if (pdfUrl && !streamingOnly) {
+          streamingOnly = true;
+          status.draw("Повторная загрузка…");
+          void loading?.destroy().catch(() => {});
+          loading = pdfjs.getDocument({ url: pdfUrl, disableRange: true });
+          try {
+            pdf = await loading.promise;
+            retry = !disposed;
+          } catch {
+            pdf = undefined;
+            loading = undefined;
+            if (!disposed) status.draw("PDF недоступен · повторить");
+          }
+        } else {
+          failedPage = number;
+          status.draw("Не удалось · повторить");
+        }
+      }
     } finally {
       rendering = undefined;
       busy = false;
@@ -158,6 +185,7 @@ export async function attachReaderScene(
         next.draw("›", currentPage < pdf.numPages);
       }
     }
+    if (retry) await showPage(number);
   }
 
   const raycaster = new THREE.Raycaster();
