@@ -1,6 +1,5 @@
 import "./globals.css";
 import "./homepage-black-blue.css";
-import "katex/dist/katex.min.css";
 import React from "react";
 import type { ReactNode } from "react";
 

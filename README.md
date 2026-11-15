@@ -332,3 +332,5 @@ npm run test:e2e:phase-e
 `SEED_OFFLINE=1` включает детерминированные демонстрационные данные без обращения к импортёрам. Используйте demo seed только в отдельной локальной или тестовой базе. Параметры `PLAYWRIGHT_PRODUCTION=1` и `NEXTAUTH_URL=http://127.0.0.1:3000` позволяют запустить `npm run test:e2e` на production build.
 
 Для сдачи импортируйте репозиторий GitHub в публичный проект GitVerse. Проверьте, что README читается без входа, и приложите ссылки на GitVerse и production-домен. Подключение GitHub к Vercel описано в [инструкции по деплою](docs/operations/vercel-deploy-phase-e.md).
+
+For the Windows desktop AI coordinator and its visualizer, see [Agent Studio setup](docs/agent-console.md).

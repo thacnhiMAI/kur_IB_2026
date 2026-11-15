@@ -1,25 +1,12 @@
+import { complete, configuredTarget } from "@/lib/ai/chat-models";
 import type { AICandidate, AIProvider, RecommendationContext, RecommendationResult } from "@/lib/ai/provider";
 import { recommendationEnrichmentSchema } from "@/lib/recommendations/response-schema";
 
-export class OpenAIProvider implements AIProvider {
+export class ChatRecommendationProvider implements AIProvider {
   async getRecommendations(context: RecommendationContext, candidates: AICandidate[]): Promise<RecommendationResult> {
-    const apiKey = process.env.OPENAI_API_KEY;
-
-    if (!apiKey) {
-      throw new Error("OpenAI API key is not configured.");
-    }
-
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      signal: AbortSignal.timeout(15_000),
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_RECOMMENDATION_MODEL || "gpt-4o-mini",
-        temperature: 0.4,
-        messages: [
+    const target = configuredTarget(process.env.RECOMMENDATION_CHAT_MODEL, process.env.OPENAI_RECOMMENDATION_MODEL || "gpt-4o-mini");
+    if (!target) throw new Error("Recommendation provider is not configured.");
+    const { content } = await complete(target, [
           {
             role: "system",
             content:
@@ -42,22 +29,8 @@ export class OpenAIProvider implements AIProvider {
               ratings: context.reviewedBooks.slice(0, 15).map(({ title, rating }) => ({ title, rating }))
             })
           }
-        ],
-        response_format: { type: "json_object" }
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`OpenAI request failed with status ${response.status}.`);
-    }
-
-    const payload = await response.json();
-    const content = payload.choices?.[0]?.message?.content;
-
-    if (!content) {
-      throw new Error("OpenAI response did not contain content.");
-    }
-
+        ], { json: true, maxTokens: 1800 });
     return recommendationEnrichmentSchema.parse(JSON.parse(content));
   }
 }
+export { ChatRecommendationProvider as OpenAIProvider };

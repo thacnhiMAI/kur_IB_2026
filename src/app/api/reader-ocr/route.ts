@@ -1,13 +1,8 @@
-import crypto from "node:crypto";
-import { writeFile, unlink } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
-
 import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
 import { isReaderPageImage, requestPageVision } from "@/lib/ai/openai-page-vision";
-import { runLocalOcr } from "@/lib/ocr/local-ocr";
+import { readLocalImage } from "@/lib/ocr/read-local-image";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,12 +45,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Для облачного OCR требуется OPENAI_API_KEY." }, { status: 503 });
   }
 
-  const extension = image.type === "image/jpeg" ? ".jpg" : ".png";
-  const tempPath = path.join(os.tmpdir(), `smart-library-ocr-${crypto.randomUUID()}${extension}`);
-
   try {
-    await writeFile(tempPath, Buffer.from(await image.arrayBuffer()));
-    const result = await runLocalOcr(tempPath, { preferMath });
+    const result = await readLocalImage(image, preferMath);
     return NextResponse.json(result);
   } catch (error) {
     console.error("Reader OCR failed:", error);
@@ -63,7 +54,5 @@ export async function POST(request: Request) {
       { error: "OCR не смог распознать эту страницу. Проверьте локальный OCR/Python в backend." },
       { status: 503 }
     );
-  } finally {
-    await unlink(tempPath).catch(() => {});
   }
 }

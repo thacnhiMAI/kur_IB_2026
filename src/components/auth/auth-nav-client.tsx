@@ -2,9 +2,10 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { getSession, signOut } from "next-auth/react";
+import { signOut } from "next-auth/react";
 
 import { AuthNav, type AuthNavUser, type AuthNavVariant } from "@/components/auth/auth-nav";
+import { getSharedSession } from "@/lib/auth/client-session";
 
 export function AuthNavClient({ variant = "full" }: { variant?: AuthNavVariant }) {
   const pathname = usePathname();
@@ -13,7 +14,7 @@ export function AuthNavClient({ variant = "full" }: { variant?: AuthNavVariant }
 
   const refreshSession = useCallback(async () => {
     try {
-      const session = await getSession();
+      const session = await getSharedSession();
       if (session?.user?.accessBlocked) {
         setUser(null);
         await signOut({ redirect: false });
@@ -40,7 +41,7 @@ export function AuthNavClient({ variant = "full" }: { variant?: AuthNavVariant }
 
     async function run() {
       try {
-        const session = await getSession();
+        const session = await getSharedSession();
         if (!active) return;
         if (session?.user?.accessBlocked) {
           setUser(null);

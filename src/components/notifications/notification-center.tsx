@@ -4,6 +4,8 @@ import { Bell, CheckCheck } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { getSharedSession } from "@/lib/auth/client-session";
+
 type NotificationItem = {
   id: string;
   type: string;
@@ -30,9 +32,9 @@ export function NotificationCenter() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function refresh() {
+  async function refresh(signal?: AbortSignal) {
     try {
-      const response = await fetch("/api/notifications", { cache: "no-store" });
+      const response = await fetch("/api/notifications", { cache: "no-store", signal });
       if (response.status === 401) {
         setAuthenticated(false);
         setItems([]);
@@ -50,15 +52,30 @@ export function NotificationCenter() {
   }
 
   useEffect(() => {
-    void refresh();
-    const timer = window.setInterval(() => void refresh(), 30000);
-    const onFocus = () => void refresh();
+    const controller = new AbortController();
+    let timer: number | undefined;
+    const onFocus = () => {
+      void getSharedSession().then((session) => {
+        if (controller.signal.aborted) return;
+        if (!session?.user?.id || session.user.accessBlocked) {
+          window.clearInterval(timer);
+          timer = undefined;
+          setAuthenticated(false);
+          setItems([]);
+          setUnread(0);
+          return;
+        }
+        void refresh(controller.signal);
+        timer ??= window.setInterval(() => void refresh(controller.signal), 30000);
+      });
+    };
+    onFocus();
     window.addEventListener("focus", onFocus);
     return () => {
+      controller.abort();
       window.clearInterval(timer);
       window.removeEventListener("focus", onFocus);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   async function markRead(item: NotificationItem) {
@@ -98,7 +115,7 @@ export function NotificationCenter() {
         className="dashboard-header-icon-button relative list-none cursor-pointer"
         aria-label="Уведомления"
         title="Уведомления"
-        onClick={() => window.setTimeout(() => void refresh(), 0)}
+        onClick={() => { if (authenticated) void refresh(); }}
       >
         <Bell size={19} />
         {unread > 0 ? (

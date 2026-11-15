@@ -12,10 +12,11 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { getSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 
+import { AiUsageMenu } from "@/components/site/ai-usage-menu";
 import { ReadingCat } from "@/components/site/reading-cat";
+import { getSharedSession } from "@/lib/auth/client-session";
 
 const SIDEBAR_STORAGE_KEY = "smart-library:sidebar-collapsed:v1";
 
@@ -35,12 +36,15 @@ function isActive(pathname: string | null, href: string) {
 export function DashboardSidebar() {
   const pathname = usePathname();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [usageUser, setUsageUser] = useState<string>();
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     let active = true;
-    void getSession().then((session) => {
-      if (active) setIsAdmin(session?.user?.role === "ADMIN");
+    void getSharedSession().then((session) => {
+      if (!active) return;
+      setIsAdmin(session?.user?.role === "ADMIN");
+      setUsageUser(session?.user?.accessBlocked ? undefined : session?.user?.id);
     });
     return () => {
       active = false;
@@ -100,6 +104,7 @@ export function DashboardSidebar() {
             <Link
               key={item.href}
               href={item.href}
+              prefetch={item.href === "/" || item.href === "/catalog" ? undefined : false}
               aria-current={active ? "page" : undefined}
               aria-label={collapsed ? item.label : undefined}
               title={collapsed ? item.label : undefined}
@@ -111,6 +116,7 @@ export function DashboardSidebar() {
           );
         })}
       </nav>
+      {usageUser && <AiUsageMenu key={usageUser} />}
     </aside>
   );
 }

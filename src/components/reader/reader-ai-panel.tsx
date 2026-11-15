@@ -2,25 +2,28 @@
 
 import {
   Check,
+  Copy,
   ChevronDown,
   ChevronRight,
   FileText,
   LoaderCircle,
   MessageSquarePlus,
   Plus,
+  Paperclip,
   Send,
   Square,
   Trash2,
   X
 } from "lucide-react";
-import * as katex from "katex";
+import { ReaderAnswer } from "@/components/reader/reader-answer";
 import Image from "next/image";
 import { type ClipboardEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import { cancelQueuedReaderJob, waitForReaderJob } from "@/lib/reading/reader-job-client";
 import { prepareReaderImage } from "@/lib/reading/page-image";
 
 export type ReaderAiScope = "page" | "document";
 type ReaderAiAction = "summary" | "explain" | "questions" | "ask";
-type Message = { id: string; role: string; content: string; createdAt: string };
+type Message = { id: string; role: string; content: string; createdAt: string; image?: File };
 type Conversation = {
   id: string;
   scope: ReaderAiScope;
@@ -30,12 +33,26 @@ type Conversation = {
   updatedAt: string;
   messages: Message[];
 };
-type JobState = { jobId: string; status: "running" | "done" | "error"; startedAt: number; finishedAt?: number };
+type JobState = { jobId: string; conversationId: string; status: "running" | "done" | "error"; startedAt: number; finishedAt?: number; stage?: "preparing" | "submitted" | "queued" | "processing" };
 export type ReaderAiAttachment = { page: number; file: File };
 type Toast = { id: string; text: string };
 
 const WIDTH_KEY = "smart-library:reader-ai-rail-width:v1";
 const IMAGE_COMMAND = /(?:^|\s)#create_immage(?=\s|$)/gi;
+
+function notifyReaderUsage() {
+  window.dispatchEvent(new Event("reader-ai-usage-updated"));
+}
+
+function SentImage({ file }: { file: File }) {
+  const [url, setUrl] = useState<string>();
+  useEffect(() => {
+    const src = URL.createObjectURL(file);
+    setUrl(src);
+    return () => URL.revokeObjectURL(src);
+  }, [file]);
+  return url ? <Image src={url} alt="Отправленное вложение" width={192} height={120} unoptimized /> : null;
+}
 
 function elapsedLabel(ms: number) {
   const seconds = Math.floor(Math.max(0, ms) / 1000);
@@ -45,42 +62,6 @@ function elapsedLabel(ms: number) {
 function timeLabel(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "" : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-function normalizeMathDelimiters(content: string) {
-  return content
-    .replace(/\\\[/g, "$$")
-    .replace(/\\\]/g, "$$")
-    .replace(/\\\(/g, "$")
-    .replace(/\\\)/g, "$");
-}
-
-function LatexMessage({ content }: { content: string }) {
-  const normalized = normalizeMathDelimiters(content);
-  const chunks = normalized.split(/(\$\$[\s\S]*?\$\$|\$[^$\n]+?\$)/g).filter(Boolean);
-
-  return (
-    <>
-      {chunks.map((chunk, index) => {
-        const display = chunk.startsWith("$$") && chunk.endsWith("$$");
-        const inline = !display && chunk.startsWith("$") && chunk.endsWith("$");
-        if (!display && !inline) return <span key={index}>{chunk}</span>;
-
-        const expression = chunk.slice(display ? 2 : 1, display ? -2 : -1).trim();
-        if (!expression) return <span key={index}>{chunk}</span>;
-        const html = katex.renderToString(expression, {
-          displayMode: display,
-          throwOnError: false,
-          strict: "ignore",
-          trust: false,
-          output: "html"
-        });
-        return display
-          ? <div key={index} className="reader-ai-math-block" dangerouslySetInnerHTML={{ __html: html }} />
-          : <span key={index} className="reader-ai-math-inline" dangerouslySetInnerHTML={{ __html: html }} />;
-      })}
-    </>
-  );
 }
 
 export function ReaderAiPanel({
@@ -112,6 +93,7 @@ export function ReaderAiPanel({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [expandedGroup, setExpandedGroup] = useState<string>("document");
   const [questions, setQuestions] = useState<Record<string, string>>({});
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const [attachments, setAttachments] = useState<Record<string, File | undefined>>({});
   const [preview, setPreview] = useState<string | null>(null);
   const [now, setNow] = useState(0);
@@ -122,13 +104,14 @@ export function ReaderAiPanel({
   const [error, setError] = useState("");
   const [width, setWidth] = useState(340);
   const [jobs, setJobs] = useState<Record<string, JobState>>({});
+  const [copiedMessage, setCopiedMessage] = useState<string>();
   const [toasts, setToasts] = useState<Toast[]>([]);
   const resizeRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
-  const controllersRef = useRef(new Map<string, AbortController>());
+  const controllersRef = useRef(new Map<string, { conversationId: string; controller: AbortController }>());
 
   const active = useMemo(() => conversations.find((item) => item.id === activeId) ?? null, [conversations, activeId]);
-  const activeJob = active ? jobs[active.id] : undefined;
-  const activeRunning = activeJob?.status === "running";
+  const activeJobs = active ? Object.values(jobs).filter(job => job.conversationId === active.id) : [];
+  const activeRunning = activeJobs.some(job => job.status === "running");
   const attachment = active ? attachments[active.id] : undefined;
   const question = active ? questions[active.id] ?? "" : "";
 
@@ -145,7 +128,7 @@ export function ReaderAiPanel({
     setNow(Date.now());
     const timer = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(timer);
-  }, [activeRunning, activeJob?.jobId]);
+  }, [activeRunning]);
 
   const pageGroups = useMemo(() => {
     const groups = new Map<number, Conversation[]>();
@@ -177,7 +160,9 @@ export function ReaderAiPanel({
   );
 
   async function load(preserveNew = false) {
-    const response = await fetch(`/api/reader-ai/conversations?bookId=${encodeURIComponent(bookId)}`, { cache: "no-store" });
+    const query = new URLSearchParams({ bookId });
+    if (contentId) query.set("contentId", contentId);
+    const response = await fetch(`/api/reader-ai/conversations?${query}`, { cache: "no-store" });
     if (!response.ok) return;
     const result = await response.json() as { ok?: boolean; conversations?: Conversation[] };
     if (result.ok) setConversations((current) => {
@@ -193,7 +178,7 @@ export function ReaderAiPanel({
     }
     void load(true).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, bookId]);
+  }, [open, bookId, contentId]);
 
   useEffect(() => {
     try {
@@ -207,8 +192,17 @@ export function ReaderAiPanel({
   }, [open, width, onWidthChange]);
 
   useEffect(() => () => {
-    for (const controller of controllersRef.current.values()) controller.abort();
+    for (const { controller } of controllersRef.current.values()) controller.abort();
   }, []);
+
+  async function copyMessage(message: Message) {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopiedMessage(message.id);
+    } catch {
+      showToast("Не удалось скопировать сообщение.");
+    }
+  }
 
   function showToast(text: string) {
     const id = crypto.randomUUID();
@@ -256,14 +250,15 @@ export function ReaderAiPanel({
   }, [open, selectionAttachment]);
 
   async function removeConversation(id: string) {
-    const running = jobs[id];
-    if (running?.status === "running") await stopJob(id);
+    for (const job of Object.values(jobs)) {
+      if (job.conversationId === id && job.status === "running") await stopJob(job.jobId);
+    }
     const response = await fetch(`/api/reader-ai/conversations?id=${encodeURIComponent(id)}`, { method: "DELETE" });
     if (!response.ok) return;
     setConversations((current) => current.filter((item) => item.id !== id));
     setAttachments((current) => { const next = { ...current }; delete next[id]; return next; });
     setQuestions((current) => { const next = { ...current }; delete next[id]; return next; });
-    setJobs((current) => { const next = { ...current }; delete next[id]; return next; });
+    setJobs((current) => Object.fromEntries(Object.entries(current).filter(([, job]) => job.conversationId !== id)));
     if (activeId === id) setActiveId(null);
   }
 
@@ -280,21 +275,22 @@ export function ReaderAiPanel({
     }).catch(() => setError("Не удалось подготовить изображение из буфера обмена."));
   }
 
-  async function stopJob(conversationId: string) {
-    const job = jobs[conversationId];
+  async function stopJob(jobId: string) {
+    const job = jobs[jobId];
     if (!job || job.status !== "running") return;
-    controllersRef.current.get(conversationId)?.abort();
-    controllersRef.current.delete(conversationId);
+    controllersRef.current.get(jobId)?.controller.abort(new Error("Cancelled"));
+    controllersRef.current.delete(jobId);
+    void cancelQueuedReaderJob(jobId).then(notifyReaderUsage).catch(() => undefined);
     void fetch("/api/reader-ai/cancel", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ jobId: job.jobId })
     }).catch(() => undefined);
-    setJobs((current) => { const next = { ...current }; delete next[conversationId]; return next; });
+    setJobs((current) => { const next = { ...current }; delete next[jobId]; return next; });
   }
 
   async function run(action: ReaderAiAction) {
-    if (!active || controllersRef.current.has(active.id)) return;
+    if (!active) return;
     setError("");
     const conversation = active;
     const userContent = action === "ask"
@@ -313,24 +309,26 @@ export function ReaderAiPanel({
 
     const jobId = crypto.randomUUID();
     const controller = new AbortController();
-    controllersRef.current.set(conversation.id, controller);
+    controllersRef.current.set(jobId, { conversationId: conversation.id, controller });
     const startedAt = Date.now();
     setNow(startedAt);
-    setJobs((current) => ({ ...current, [conversation.id]: { jobId, status: "running", startedAt } }));
+    setJobs((current) => ({ ...current, [jobId]: { jobId, conversationId: conversation.id, status: "running", startedAt, stage: image || output === "image" ? "submitted" : "preparing" } }));
     const optimisticId = `local-${jobId}`;
     if (output === "text") {
       setConversations((current) => current.map((item) => item.id === conversation.id ? {
         ...item,
-        messages: [...item.messages, { id: optimisticId, role: "user", content: userContent, createdAt: new Date().toISOString() }]
+        messages: [...item.messages, { id: optimisticId, role: "user", content: userContent, image, createdAt: new Date().toISOString() }]
       } : item));
     }
+    if (image) setAttachments((current) => current[conversation.id] === image ? { ...current, [conversation.id]: undefined } : current);
     if (action === "ask") setQuestions((current) => ({ ...current, [conversation.id]: "" }));
 
     try {
       const text = image || output === "image" ? "" : (await getText(conversation.scope, conversation.page ?? undefined)).trim();
+      controller.signal.throwIfAborted();
       if (!image && output === "text" && !text) throw new Error("В PDF не удалось получить текст.");
       const requestPayload = JSON.stringify({
-        action, output, scope: conversation.scope, title, text, bookId, jobId,
+        action, output, scope: conversation.scope, title, text, bookId, contentId, jobId,
         page: sourcePage ?? undefined,
         question: action === "ask" ? prompt : undefined,
         conversationId: conversation.id
@@ -340,43 +338,59 @@ export function ReaderAiPanel({
         form.set("image", image);
         form.set("payload", requestPayload);
       }
+      const setStage = (stage: JobState["stage"]) => {
+        setJobs(current => current[jobId]?.stage !== stage && current[jobId]?.status === "running"
+          ? { ...current, [jobId]: { ...current[jobId], stage } } : current);
+      };
+      setStage("submitted");
       const response = await fetch("/api/reader-ai", {
         method: "POST",
         headers: form ? undefined : { "Content-Type": "application/json" },
-        signal: controller.signal,
         body: form ?? requestPayload
       });
-      const payload = await response.json().catch(() => ({})) as { answer?: string; image?: string; error?: string };
-      if (controller.signal.aborted) return;
+      const payload = await response.json().catch(() => ({})) as { answer?: string; image?: string; error?: string; jobId?: string };
+      if (controller.signal.reason instanceof Error && controller.signal.reason.message === "Cancelled" && response.status === 202 && payload.jobId) {
+        void cancelQueuedReaderJob(payload.jobId).then(notifyReaderUsage).catch(() => undefined);
+      }
+      controller.signal.throwIfAborted();
       if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
       if (output === "image") {
         if (!payload.image) throw new Error("OpenAI не вернул изображение.");
         setIllustration({ conversationId: conversation.id, src: `data:image/jpeg;base64,${payload.image}` });
       } else {
-        if (!payload.answer) throw new Error("AI Reader не вернул ответ.");
-        if (image) setAttachments((current) => current[conversation.id] === image ? { ...current, [conversation.id]: undefined } : current);
-        const answer = payload.answer;
+        let answer = payload.answer;
+        if (response.status === 202 && payload.jobId) {
+          setStage("queued");
+          notifyReaderUsage();
+          answer = await waitForReaderJob(payload.jobId, controller.signal, status => {
+            setStage(status === "queued" ? "queued" : "processing");
+          });
+        }
+        if (!answer) throw new Error("AI Reader не вернул ответ.");
         const createdAt = new Date().toISOString();
         setConversations((current) => current.map((item) => item.id === conversation.id ? {
-          ...item, updatedAt: createdAt, messages: [...item.messages, { id: `answer-${jobId}`, role: "assistant", content: answer, createdAt }]
+          ...item, updatedAt: createdAt, messages: item.messages.flatMap(message => message.id === optimisticId
+            ? [message, { id: `answer-${jobId}`, role: "assistant", content: answer, createdAt }] : [message])
         } : item));
       }
-      setJobs((current) => current[conversation.id]?.jobId === jobId ? { ...current, [conversation.id]: { jobId, status: "done", startedAt, finishedAt: Date.now() } } : current);
+      setJobs((current) => current[jobId]?.jobId === jobId ? { ...current, [jobId]: { jobId, conversationId: conversation.id, status: "done", startedAt, finishedAt: Date.now() } } : current);
       showToast(`${conversation.scope === "document" ? "PDF" : `Страница ${conversation.page}`}: AI Reader завершил ответ.`);
     } catch (cause) {
+      if (image) setAttachments((current) => current[conversation.id] ? current : { ...current, [conversation.id]: image });
       if (controller.signal.aborted || (cause instanceof Error && cause.message === "Cancelled")) {
         setConversations((current) => current.map((item) => item.id === conversation.id
           ? { ...item, messages: item.messages.filter((message) => message.id !== optimisticId) }
           : item));
-        setJobs((current) => { if (current[conversation.id]?.jobId !== jobId) return current; const next = { ...current }; delete next[conversation.id]; return next; });
+        setJobs((current) => { if (current[jobId]?.jobId !== jobId) return current; const next = { ...current }; delete next[jobId]; return next; });
       } else {
         setConversations((current) => current.map((item) => item.id === conversation.id ? { ...item, messages: item.messages.filter((message) => message.id !== optimisticId) } : item));
         if (action === "ask") setQuestions((current) => current[conversation.id] ? current : { ...current, [conversation.id]: userContent });
-        setJobs((current) => ({ ...current, [conversation.id]: { jobId, status: "error", startedAt, finishedAt: Date.now() } }));
+        setJobs((current) => ({ ...current, [jobId]: { jobId, conversationId: conversation.id, status: "error", startedAt, finishedAt: Date.now() } }));
         setError(cause instanceof Error ? cause.message : "Не удалось получить ответ AI Reader.");
       }
     } finally {
-      if (controllersRef.current.get(conversation.id) === controller) controllersRef.current.delete(conversation.id);
+      controllersRef.current.delete(jobId);
+      notifyReaderUsage();
     }
   }
 
@@ -415,7 +429,8 @@ export function ReaderAiPanel({
   if (!open) return toastStack;
 
   const statusIcon = (conversationId: string) => {
-    const state = jobs[conversationId];
+    const relatedJobs = Object.values(jobs).filter(job => job.conversationId === conversationId);
+    const state = relatedJobs.find(job => job.status === "running") ?? relatedJobs.at(-1);
     if (state?.status === "running") return <LoaderCircle size={14} className="reader-ai-spin" />;
     if (state?.status === "done") return <Check size={14} className="reader-ai-done" />;
     return <MessageSquarePlus size={14} />;
@@ -459,22 +474,36 @@ export function ReaderAiPanel({
               </div>
             </header>
             <div className="reader-ai-chat-messages">
-              {active.messages.length ? active.messages.map((message) => <div key={message.id} className={`reader-ai-message is-${message.role}`}><LatexMessage content={message.content} /></div>) : <p className="reader-rail-empty">Начните разговор с AI Reader.</p>}
+              {active.messages.length ? active.messages.map((message) => (
+                <div key={message.id} className={`reader-ai-msg-row is-${message.role}`} tabIndex={0} onMouseLeave={() => setCopiedMessage((id) => id === message.id ? undefined : id)}>
+                  <div className={`reader-ai-message is-${message.role}`}>
+                    {message.image ? <SentImage file={message.image} /> : null}
+                    {message.role === "assistant" ? <ReaderAnswer content={message.content} /> : message.content}
+                  </div>
+                  <div className="reader-ai-msg-tools">
+                    <time dateTime={message.createdAt}>{timeLabel(message.createdAt)}</time>
+                    <button type="button" onClick={() => void copyMessage(message)} aria-label={copiedMessage === message.id ? "Скопировано" : "Скопировать сообщение"} title="Скопировать">
+                      {copiedMessage === message.id ? <Check size={14} /> : <Copy size={14} />}
+                    </button>
+                  </div>
+                </div>
+              )) : <p className="reader-rail-empty">Начните разговор с AI Reader.</p>}
               {illustration?.conversationId === active.id ? (
                 <figure className="reader-ai-message is-assistant">
                   <Image src={illustration.src} alt={`Иллюстрация к странице ${active.page}`} width={1024} height={1024} unoptimized className="h-auto max-w-full rounded-lg" />
                   <a href={illustration.src} download={`page-${active.page}-illustration.jpg`} className="underline">Скачать иллюстрацию</a>
                 </figure>
               ) : null}
-              {activeJob ? <div className="reader-ai-message is-assistant is-loading">
-                {activeRunning ? <LoaderCircle size={15} className="reader-ai-spin" /> : activeJob.status === "done" ? <Check size={15} /> : null}
-                {activeRunning ? "Working" : activeJob.status === "done" ? "Worked" : "Failed after"} · {elapsedLabel((activeJob.finishedAt ?? now) - activeJob.startedAt)}
-              </div> : null}
+              {activeJobs.map(activeJob => <div key={activeJob.jobId} className="reader-ai-message is-assistant is-loading">
+                {activeJob.status === "running" ? <LoaderCircle size={15} className="reader-ai-spin" /> : activeJob.status === "done" ? <Check size={15} /> : null}
+                {activeJob.status === "running" ? (activeJob.stage === "preparing" ? "Preparing PDF text" : activeJob.stage === "queued" ? "Queued" : activeJob.stage === "processing" ? "Agent Studio working" : "Waiting for response") : activeJob.status === "done" ? "Worked" : "Failed after"} · {elapsedLabel((activeJob.finishedAt ?? now) - activeJob.startedAt)}
+                {activeJob.status === "running" && <button type="button" onClick={() => void stopJob(activeJob.jobId)} aria-label="Остановить запрос" title="Остановить запрос"><Square size={13} /></button>}
+              </div>)}
             </div>
             <div className="reader-ai-quick-actions">
-              <button type="button" disabled={activeRunning} onClick={() => void run("summary")}>Кратко</button>
-              <button type="button" disabled={activeRunning} onClick={() => void run("explain")}>Объяснить</button>
-              <button type="button" disabled={activeRunning} onClick={() => void run("questions")}>Вопросы</button>
+              <button type="button" onClick={() => void run("summary")}>Кратко</button>
+              <button type="button" onClick={() => void run("explain")}>Объяснить</button>
+              <button type="button" onClick={() => void run("questions")}>Вопросы</button>
             </div>
             {error ? <p className="reader-ai-error">{error}</p> : null}
             {attachment && preview ? (
@@ -505,17 +534,23 @@ export function ReaderAiPanel({
               }}
             />
             <div className="reader-ai-composer">
+              <input ref={imageInputRef} type="file" accept="image/*" hidden onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = "";
+                if (!file) return;
+                const id = active.id;
+                void prepareReaderImage(file, "reader-attachment").then((image) => {
+                  setAttachments((current) => ({ ...current, [id]: image }));
+                }).catch(() => showToast("Не удалось прикрепить изображение."));
+              }} />
+              <button type="button" title="Прикрепить изображение" aria-label="Прикрепить изображение" onClick={() => imageInputRef.current?.click()}><Paperclip size={16} /></button>
               <textarea ref={composerRef} style={{ height: composerHeight }} aria-label="Сообщение AI Reader" value={question} onChange={(event) => {
                 const value = event.target.value;
                 setQuestions((current) => ({ ...current, [active.id]: value }));
               }} rows={2} maxLength={2000} placeholder="Вопрос или #create_immage…" onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.nativeEvent.isComposing && !event.shiftKey && question.trim() && !activeRunning) { event.preventDefault(); void run("ask"); }
+                if (event.key === "Enter" && !event.nativeEvent.isComposing && !event.shiftKey && question.trim()) { event.preventDefault(); void run("ask"); }
               }} />
-              {activeRunning ? (
-                <button type="button" className="is-stop" onClick={() => void stopJob(active.id)} title="Остановить"><Square size={15} fill="currentColor" /></button>
-              ) : (
-                <button type="button" disabled={!question.trim()} onClick={() => void run("ask")} title="Отправить"><Send size={16} /></button>
-              )}
+              <button type="button" disabled={!question.trim()} onClick={() => void run("ask")} title="Отправить"><Send size={16} /></button>
             </div>
           </div>
         ) : (

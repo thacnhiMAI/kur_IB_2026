@@ -24,11 +24,13 @@ async function viewerId() {
 export async function GET(request: Request) {
   const userId = await viewerId();
   if (!userId) return NextResponse.json({ ok: false }, { status: 401 });
-  const bookId = new URL(request.url).searchParams.get("bookId");
+  const query = new URL(request.url).searchParams;
+  const bookId = query.get("bookId");
+  const contentId = query.get("contentId");
   if (!bookId) return NextResponse.json({ ok: false }, { status: 400 });
 
   const conversations = await db.readerAiConversation.findMany({
-    where: { userId, bookId },
+    where: { userId, bookId, ...(contentId ? { contentId } : {}) },
     orderBy: { updatedAt: "desc" },
     include: {
       messages: { orderBy: { createdAt: "asc" }, take: 80 }

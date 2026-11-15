@@ -56,6 +56,8 @@ model User {
   authVersion             Int                      @default(0)
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
+  readerAiUsage           ReaderAiBudget?
+  agentRuns               AgentRun[]
   accounts                Account[]
   sessions                Session[]
   reviews                 Review[]
@@ -442,4 +444,43 @@ model ReaderAiMessage {
   conversation   ReaderAiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId, createdAt])
+}
+
+model AgentRun {
+  id         String      @id @default(cuid())
+  ownerId    String
+  owner      User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  prompt     String
+  limit      Int
+  status     String      @default("running")
+  createdAt  DateTime    @default(now())
+  steps      AgentStep[]
+
+  @@index([ownerId, createdAt])
+}
+
+model AgentStep {
+  id        String   @id @default(cuid())
+  runId     String
+  run       AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  label     String
+  status    String   @default("running")
+  model     String
+  servedModel String?
+  output    String?
+  error     String?
+  tokens    Int?
+  cost      Float?
+  createdAt DateTime @default(now())
+
+  @@index([runId, createdAt])
+}
+
+model ReaderAiBudget {
+  userId     String   @id
+  shortStart DateTime @db.Timestamptz
+  shortUsed  Int
+  weekStart  DateTime @db.Timestamptz
+  weekUsed   Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

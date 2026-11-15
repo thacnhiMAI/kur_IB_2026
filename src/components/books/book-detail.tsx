@@ -172,7 +172,7 @@ export function BookDetail({
                 <FavoriteHeartButton active={isFavorite} />
               </form>
             ) : (
-              <Link href={signInHref} className="inline-flex">
+              <Link href={signInHref} prefetch={false} className="inline-flex">
                 <span className="sr-only">Добавить в избранное</span>
                 <span className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--surface-border)] bg-[var(--surface-3)] text-[var(--text-secondary)]">♡</span>
               </Link>
@@ -213,7 +213,7 @@ export function BookDetail({
         ) : (
           <div className="mt-4 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-3)] p-5">
             <p className="text-sm leading-6 text-[var(--text-secondary)]">Чтобы поставить оценку и написать отзыв, войдите в аккаунт.</p>
-            <Link href={signInHref} className="concept-button-primary mt-4 inline-flex rounded-xl px-4 py-2.5 text-sm font-semibold">Войти, чтобы оценить</Link>
+            <Link href={signInHref} prefetch={false} className="concept-button-primary mt-4 inline-flex rounded-xl px-4 py-2.5 text-sm font-semibold">Войти, чтобы оценить</Link>
           </div>
         )}
       </div>

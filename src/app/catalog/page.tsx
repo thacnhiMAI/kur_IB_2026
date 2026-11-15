@@ -25,7 +25,6 @@ export default async function CatalogPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const params = await searchParams;
-  const session = await auth();
   const catalogParams: CatalogSearchParams = {
     q: params.q,
     genre: params.genre,
@@ -34,7 +33,7 @@ export default async function CatalogPage({
     cursor: params.cursor,
     direction: params.direction === "prev" ? "prev" : "next"
   };
-  const data = await getCatalogPageData(catalogParams);
+  const [session, data] = await Promise.all([auth(), getCatalogPageData(catalogParams)]);
 
   const progressByBookId = session?.user?.id
     ? new Map(

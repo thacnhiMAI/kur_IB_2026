@@ -253,6 +253,9 @@ export default function PdfFlipReader({
     show: (page: number, width: number, prefetch?: boolean) => Promise<void>;
     raster: (page: number, width: number) => Promise<Blob>;
     readText: (page: number) => Promise<void>;
+    readOcrText: (page: number) => Promise<string | undefined>;
+    saveOcrText: (page: number, text: string) => Promise<void>;
+    signal: AbortSignal;
     selectionText: (page: number, rect: HighlightRect, aspect: number) => Promise<string>;
     retain: (first: number, last: number) => void;
   } | null>(null);
@@ -475,6 +478,7 @@ export default function PdfFlipReader({
     if (!mount) return;
 
     let cancelled = false;
+    const documentWork = new AbortController();
     let engine: PageFlip | null = null;
     let engineLoaded = false;
     let loadingTask: ReturnType<typeof pdfjs.getDocument> | null = null;
@@ -605,7 +609,11 @@ export default function PdfFlipReader({
         image.width = undefined;
       }
     }
-    const loader = { show, raster, readText, retain, selectionText };
+    const loader = {
+      show, raster, readText, retain, selectionText, signal: documentWork.signal,
+      readOcrText: async (page: number) => (await cachePromise)?.readOcrText(page),
+      saveOcrText: async (page: number, text: string) => { await (await cachePromise)?.saveOcrText(page, text); }
+    };
     pageLoaderRef.current = loader;
 
     const clip = document.createElement("div");
@@ -839,6 +847,7 @@ export default function PdfFlipReader({
     return () => {
       cancelled = true;
       renderTasks.forEach((task) => task.cancel());
+      documentWork.abort();
       if (pageLoaderRef.current === loader) pageLoaderRef.current = null;
       if (flipRef.current === engine) flipRef.current = null;
       if (engine && engineLoaded) engine.destroy();
@@ -1069,14 +1078,19 @@ export default function PdfFlipReader({
     const job = (async () => {
       const nativeText = pageTextsRef.current[pageNumber]?.trim() ?? "";
       const preferMath = !nativeText || Boolean(pageMathHintsRef.current[pageNumber]);
-      if (preferMath) mathOcrAttemptedRef.current.add(pageNumber);
-
       try {
+        const cachedText = await loader.readOcrText(pageNumber).catch(() => undefined);
+        loader.signal.throwIfAborted();
+        if (cachedText) {
+          pageTextsRef.current[pageNumber] = cachedText;
+          mathOcrAttemptedRef.current.add(pageNumber);
+          return cachedText;
+        }
         const form = new FormData();
         form.set("image", await getPageImage(pageNumber));
         if (preferMath) form.set("preferMath", "1");
 
-        const response = await fetch("/api/reader-ocr", { method: "POST", body: form });
+        const response = await fetch("/api/reader-ocr", { method: "POST", body: form, signal: loader.signal });
         const payload = (await response.json().catch(() => ({}))) as { text?: string; engine?: string; mathText?: string; error?: string };
         if (!response.ok || !payload.text?.trim()) {
           if (nativeText) return nativeText;
@@ -1090,9 +1104,12 @@ export default function PdfFlipReader({
         const finalText = mathText && !baseText.includes(mathText)
           ? `${baseText}\n\n[LaTeX OCR]\n${mathText}`
           : baseText;
+        loader.signal.throwIfAborted();
+        mathOcrAttemptedRef.current.add(pageNumber);
         if (finalText !== pageTextsRef.current[pageNumber]) {
           pageTextsRef.current[pageNumber] = finalText;
         }
+        void loader.saveOcrText(pageNumber, finalText).catch(() => {});
         return finalText;
       } catch (cause) {
         if (nativeText) {
@@ -1101,11 +1118,41 @@ export default function PdfFlipReader({
         }
         throw cause;
       }
-    })().finally(() => ocrJobsRef.current.delete(pageNumber));
+    })().finally(() => {
+      if (ocrJobsRef.current.get(pageNumber) === job) ocrJobsRef.current.delete(pageNumber);
+    });
 
     ocrJobsRef.current.set(pageNumber, job);
     return job;
   }, [getPageImage]);
+
+  useEffect(() => {
+    if (!ready || !isAuthenticated || !aiEnabled || totalPages < 1) return;
+    const loader = pageLoaderRef.current;
+    if (!loader) return;
+    const remaining = new Set(Array.from({ length: totalPages }, (_, i) => i + 1));
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+
+    function schedule(ms: number) {
+      if (!stopped && !loader?.signal.aborted) timer = setTimeout(() => void prepareNext(), ms);
+    }
+
+    async function prepareNext() {
+      if (stopped || loader?.signal.aborted || pageLoaderRef.current !== loader) return;
+      if (document.hidden || ocrJobsRef.current.size > 0) { schedule(500); return; }
+      const current = currentPageRef.current;
+      const page = [current, current + 1, current - 1, current + 2, current - 2]
+        .find(candidate => remaining.has(candidate)) ?? remaining.values().next().value;
+      if (page === undefined) return;
+      remaining.delete(page);
+      try { await ensurePageText(page); } catch { /* On-demand reads can retry this page. */ }
+      schedule(120);
+    }
+
+    schedule(600);
+    return () => { stopped = true; clearTimeout(timer); };
+  }, [aiEnabled, ensurePageText, fileUrl, isAuthenticated, ready, totalPages]);
 
   const prepareAiText = useCallback(async (scope: "page" | "document", requestedPage?: number) => {
     if (scope === "page") {

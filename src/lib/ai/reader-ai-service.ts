@@ -1,3 +1,7 @@
+import { modelUsageUnits } from "@/lib/ai/model-usage";
+import { readerFormattingInstruction, readerLanguageInstruction } from "@/lib/ai/reader-answer-style";
+import { complete, configuredTarget } from "@/lib/ai/chat-models";
+
 import {
   cancelLocalReaderRequest,
   clearLocalReaderCancellation,
@@ -37,7 +41,8 @@ function prompt(input: { title: string; page?: number; scope: Scope; action: Act
     `Книга: ${input.title}`,
     input.scope === "page" ? `Режим: текущая страница ${input.page ?? ""}` : "Режим: весь PDF",
     instruction(input.action, input.question),
-    "Отвечай на русском языке, если текст/вопрос не требует другого языка.",
+    readerLanguageInstruction(input.question),
+    readerFormattingInstruction,
     "Сохраняй математические обозначения и формулы. Если материал содержит LaTeX, не упрощай его до plain text. В ответе оформляй inline-формулы как $...$, а отдельные формулы как $$...$$.",
     input.history?.length ? "Контекст предыдущего разговора:\n" + input.history.slice(-10).map((item) => `${item.role === "assistant" ? "AI" : "Пользователь"}: ${item.content}`).join("\n") : "",
     "",
@@ -46,46 +51,28 @@ function prompt(input: { title: string; page?: number; scope: Scope; action: Act
   ].join("\n");
 }
 
-async function openAiGenerate(promptText: string, jobId: string) {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) return null;
-  const controller = new AbortController();
-  remoteJobs().set(jobId, controller);
-  try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: process.env.OPENAI_READER_MODEL?.trim() || "gpt-4o-mini",
-        temperature: 0.15,
-        messages: [
-          { role: "system", content: "Ты AI Reader. Работай только с предоставленным материалом и явно отмечай нехватку контекста." },
-          { role: "user", content: promptText }
-        ]
-      }),
-      cache: "no-store",
-      signal: controller.signal
-    });
-    if (!response.ok) throw new Error(`OpenAI HTTP ${response.status}`);
-    const payload = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    return payload.choices?.[0]?.message?.content?.trim() || null;
-  } finally {
-    remoteJobs().delete(jobId);
-  }
-}
-
-async function generate(promptText: string, maxNewTokens: number, jobId: string) {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (apiKey) {
+async function generate(promptText: string, maxNewTokens: number, jobId: string, onUsage?: (units: number) => void) {
+  const target = configuredTarget(process.env.READER_CHAT_MODEL, process.env.OPENAI_READER_MODEL?.trim() || "gpt-4o-mini");
+  if (target) {
+    const controller = new AbortController();
+    remoteJobs().set(jobId, controller);
     try {
-      const answer = await openAiGenerate(promptText, jobId);
-      if (answer) return answer;
+      const answer = await complete(target, [
+        { role: "system", content: "Ты AI Reader. Работай только с предоставленным материалом и явно отмечай нехватку контекста." },
+        { role: "user", content: promptText }
+      ], { signal: controller.signal, maxTokens: maxNewTokens });
+      onUsage?.(modelUsageUnits(answer.servedModel, promptText, answer.content, answer.usage));
+      return answer.content;
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") throw new Error("Cancelled");
-      console.error("[reader-ai] remote provider failed, trying local model", error);
+      if (controller.signal.aborted) throw new Error("Cancelled");
+      console.error("[reader-ai] remote provider failed, trying local model", error instanceof Error ? error.name : "unknown");
+    } finally {
+      remoteJobs().delete(jobId);
     }
   }
-  return generateWithLocalReaderModel(promptText, maxNewTokens, jobId);
+  const content = await generateWithLocalReaderModel(promptText, maxNewTokens, jobId);
+  onUsage?.(modelUsageUnits("local", promptText, content));
+  return content;
 }
 
 export function cancelReaderAiJob(jobId: string) {
@@ -103,11 +90,12 @@ export async function answerReaderAi(input: {
   text: string;
   history?: Array<{ role: string; content: string }>;
   jobId: string;
+  onUsage?: (units: number) => void;
 }) {
   const clean = input.text.replace(/\u0000/g, "").trim();
   try {
     if (input.scope === "page" || clean.length <= 24_000) {
-      return await generate(prompt({ ...input, text: clean }), 640, input.jobId);
+      return await generate(prompt({ ...input, text: clean }), 640, input.jobId, input.onUsage);
     }
 
     const parts = chunks(clean);
@@ -119,11 +107,11 @@ export async function answerReaderAi(input: {
         "Сожми эту часть в фактический конспект, сохрани имена, определения, числа, выводы, связи и математические формулы. LaTeX оставляй в LaTeX. Не выдумывай.",
         "",
         parts[index]
-      ].join("\n"), 420, input.jobId);
+      ].join("\n"), 420, input.jobId, input.onUsage);
       digests.push(`[Часть ${index + 1}]\n${digest}`);
     }
 
-    return await generate(prompt({ ...input, text: digests.join("\n\n") }), 760, input.jobId);
+    return await generate(prompt({ ...input, text: digests.join("\n\n") }), 760, input.jobId, input.onUsage);
   } finally {
     clearLocalReaderCancellation(input.jobId);
   }

@@ -1,6 +1,6 @@
 import type { AIProvider } from "@/lib/ai/provider";
 import { GigaChatProvider } from "@/lib/ai/gigachat-provider";
-import { OpenAIProvider } from "@/lib/ai/openai-provider";
+import { ChatRecommendationProvider } from "@/lib/ai/openai-provider";
 import { getRecommendationCandidates } from "@/lib/recommendations/candidates";
 import { buildFallbackRecommendationResult } from "@/lib/recommendations/fallback";
 import { buildRecommendationContext } from "@/lib/recommendations/signals";
@@ -9,9 +9,10 @@ import type { RecommendationResult } from "@/lib/recommendations/types";
 export { buildRecommendationContext } from "@/lib/recommendations/signals";
 export { getLatestRecommendationSnapshot } from "@/lib/recommendations/snapshot";
 
-export type RecommendationProviderName = "fallback" | "openai" | "gigachat";
+export type RecommendationProviderName = "fallback" | "openai" | "gigachat" | "chat";
 
 export function getProviderName(): RecommendationProviderName {
+  if (process.env.RECOMMENDATION_CHAT_MODEL?.trim()) return "chat";
   const provider = process.env.AI_PROVIDER?.trim().toLowerCase();
 
   if (provider === "openai" || provider === "gigachat") {
@@ -24,8 +25,8 @@ export function getProviderName(): RecommendationProviderName {
 export function getProvider(): AIProvider {
   const provider = getProviderName();
 
-  if (provider === "openai") {
-    return new OpenAIProvider();
+  if (provider === "chat" || provider === "openai") {
+    return new ChatRecommendationProvider();
   }
 
   if (provider === "gigachat") {

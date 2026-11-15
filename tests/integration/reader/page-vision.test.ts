@@ -4,19 +4,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as askReader } from "@/app/api/reader-ai/route";
 import { POST as recognizePage } from "@/app/api/reader-ocr/route";
 
-const { findConversation, transaction } = vi.hoisted(() => ({
+const { findConversation, findMessages, transaction, runLocalOcr, queueReaderTask, reserveReaderQuota, settleReaderQuota } = vi.hoisted(() => ({
   findConversation: vi.fn(),
-  transaction: vi.fn()
+  findMessages: vi.fn(),
+  transaction: vi.fn(),
+  runLocalOcr: vi.fn(),
+  queueReaderTask: vi.fn(),
+  reserveReaderQuota: vi.fn(),
+  settleReaderQuota: vi.fn()
 }));
 
 vi.mock("@/auth", () => ({ auth: async () => ({ user: { id: "reader" } }) }));
 vi.mock("@/lib/db", () => ({ db: {
   $transaction: transaction,
   readerAiConversation: { findFirst: findConversation, update: vi.fn() },
-  readerAiMessage: { create: vi.fn() }
+  readerAiMessage: { create: vi.fn(), findMany: findMessages }
 } }));
 vi.mock("@/lib/ai/reader-ai-service", () => ({ answerReaderAi: vi.fn() }));
-vi.mock("@/lib/ocr/local-ocr", () => ({ runLocalOcr: vi.fn() }));
+vi.mock("@/lib/ocr/local-ocr", () => ({ runLocalOcr }));
+
+vi.mock("@/lib/ai/reader-quota", () => ({ reserveReaderQuota, settleReaderQuota }));
+vi.mock("@/lib/ai/agent-queue", () => ({ queueReaderTask, ReaderQueueFull: class extends Error {} }));
 
 function pageRequest(path: string, payload?: object) {
   const form = new FormData();
@@ -33,10 +41,13 @@ describe("OpenAI page vision", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    reserveReaderQuota.mockResolvedValue({ reservation: { units: 256 } });
+    settleReaderQuota.mockResolvedValue(undefined);
     vi.stubEnv("OPENAI_API_KEY", "test-key");
     vi.stubEnv("READER_OCR_PROVIDER", "openai");
     vi.stubGlobal("fetch", provider);
-    findConversation.mockResolvedValue({ id: "even", page: 110, scope: "page", messages: [] });
+    findConversation.mockResolvedValue({ id: "even", page: 110, scope: "page", bookId: "book", contentId: "pdf" });
+    findMessages.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -56,12 +67,48 @@ describe("OpenAI page vision", () => {
   });
 
   it("sends page 110 from its own conversation and returns the text", async () => {
+    findMessages.mockResolvedValueOnce([
+      { role: "assistant", content: "Earlier explanation", conversation: { page: 109 } },
+      { role: "user", content: "What does this mean?", conversation: { page: 109 } }
+    ]);
     provider.mockResolvedValueOnce(Response.json(transcribed));
     const response = await askReader(pageRequest("reader-ai", evenPage));
     expect(await response.json()).toEqual({ answer: "Formula: $x^2$", conversationId: "even" });
     const body = JSON.parse(provider.mock.calls[0][1].body);
     expect(body.input[0].content[0].text).toContain("page 110");
+    expect(body.input[0].content[0].text).toContain("[Page 109] Earlier explanation");
+    expect(findMessages).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ conversation: { userId: "reader", bookId: "book", contentId: "pdf" } }),
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }]
+    }));
     expect(transaction).toHaveBeenCalledOnce();
+  });
+
+  it("queues both the question and original image without an OpenAI key", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "");
+    vi.stubEnv("VERCEL", "");
+    vi.stubEnv("READER_AGENT_QUEUE", "1");
+    queueReaderTask.mockResolvedValueOnce({ jobId: "queued-id" });
+    const response = await askReader(pageRequest("reader-ai", {
+      ...evenPage, action: "ask", question: "Giải thích bằng tiếng Việt"
+    }));
+    expect(response.status).toBe(202);
+    expect(await response.json()).toMatchObject({ jobId: "queued-id", status: "queued" });
+    expect(queueReaderTask).toHaveBeenCalledWith("reader", expect.stringContaining("Giải thích bằng tiếng Việt"),
+      expect.any(AbortSignal), { mime: "image/png", base64: "iVBORw0KGgo=" },
+      expect.objectContaining({ reservation: { units: 256 }, conversationId: "even" }));
+    expect(runLocalOcr).not.toHaveBeenCalled();
+    expect(settleReaderQuota).not.toHaveBeenCalled();
+    expect(provider).not.toHaveBeenCalled();
+  });
+
+  it("rejects a request before invoking the model when either usage window is exhausted", async () => {
+    reserveReaderQuota.mockResolvedValueOnce({ reservation: null, quota: { short: { used: 120000, limit: 120000 } } });
+    const response = await askReader(pageRequest("reader-ai", evenPage));
+    expect(response.status).toBe(429);
+    expect(provider).not.toHaveBeenCalled();
+    expect(queueReaderTask).not.toHaveBeenCalled();
+    expect(settleReaderQuota).not.toHaveBeenCalled();
   });
 
   it("generates an image from the prompt alone", async () => {

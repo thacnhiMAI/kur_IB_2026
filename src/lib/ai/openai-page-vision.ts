@@ -59,6 +59,8 @@ export async function requestPageVision(input: {
 
   const result = await response.json() as {
     status?: string;
+    model?: string;
+    usage?: { input_tokens?: number; output_tokens?: number };
     output?: Array<{ type: string; result?: string; content?: Array<{ type: string; text?: string }> }>;
   };
   if (result.status === "incomplete" || result.status === "failed") throw new Error("OpenAI did not complete the page request.");
@@ -68,5 +70,7 @@ export async function requestPageVision(input: {
   if (generateImage ? !image || image.length > 3_800_000 : !text) {
     throw new Error("OpenAI returned no usable page output.");
   }
-  return { text, image };
+  const { input_tokens: inputTokens, output_tokens: outputTokens } = result.usage ?? {};
+  const usage = typeof inputTokens === "number" && typeof outputTokens === "number" && Number.isSafeInteger(inputTokens) && Number.isSafeInteger(outputTokens) && inputTokens >= 0 && outputTokens >= 0 ? { prompt_tokens: inputTokens, completion_tokens: outputTokens } : undefined;
+  return { text, image, usage, model: result.model ?? "openai" };
 }

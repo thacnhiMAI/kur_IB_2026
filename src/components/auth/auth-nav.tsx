@@ -41,8 +41,8 @@ function CompactNav({ user, loading, onSignOut }: AuthNavProps) {
   if (!user) {
     return (
       <div className="flex items-center gap-2">
-        <Link href="/auth/sign-in" className="dashboard-auth-link">Войти</Link>
-        <Link href="/auth/sign-up" className="dashboard-auth-primary">Регистрация</Link>
+        <Link href="/auth/sign-in" prefetch={false} className="dashboard-auth-link">Войти</Link>
+        <Link href="/auth/sign-up" prefetch={false} className="dashboard-auth-primary">Регистрация</Link>
       </div>
     );
   }

@@ -2,6 +2,8 @@
 const CACHE_NAME = "reader-pdf-pages-v1";
 const MAX_PAGE_ENTRIES = 80;
 const MAX_DOCUMENT_ENTRIES = 24;
+const MAX_TEXT_ENTRIES = 800;
+const MAX_TEXT_CHARS = 32_000;
 const MAX_PAGE_BYTES = 2 * 1024 * 1024;
 
 export type ReaderDocumentInfo = { pages: number; aspect: number };
@@ -10,7 +12,9 @@ export async function openReaderPageCache(scope: string | undefined) {
   if (!scope || typeof caches === "undefined") return null;
 
   try {
-    const [cache, index] = await Promise.all([caches.open(CACHE_NAME), caches.open(`${CACHE_NAME}-index`)]);
+    const [cache, index, text] = await Promise.all([
+      caches.open(CACHE_NAME), caches.open(`${CACHE_NAME}-index`), caches.open(`${CACHE_NAME}-ocr-text`)
+    ]);
     const prefix = `/${CACHE_NAME}/${encodeURIComponent(scope)}`;
     let writes = Promise.resolve();
 
@@ -24,6 +28,14 @@ export async function openReaderPageCache(scope: string | undefined) {
     }
 
     return {
+      async readOcrText(page: number) {
+        return (await text.match(`${prefix}/ocr/${page}`))?.text();
+      },
+      saveOcrText(page: number, value: string) {
+        if (value.length <= MAX_TEXT_CHARS) {
+          return save(text, MAX_TEXT_ENTRIES, `${prefix}/ocr/${page}`, new Response(value));
+        }
+      },
       async readInfo(): Promise<ReaderDocumentInfo | undefined> {
         const entry = await index.match(`${prefix}/info`);
         const info = await entry?.json() as ReaderDocumentInfo | undefined;
