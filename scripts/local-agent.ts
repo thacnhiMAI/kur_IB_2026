@@ -97,7 +97,7 @@ const lines = headless ? undefined : createInterface({ input: process.stdin });
 const active = new Map<string, AbortController>();
 const configuredRequests = Number(process.env.AGENT_PARALLEL_REQUESTS);
 let parallelLimit = Number.isInteger(configuredRequests) && configuredRequests >= 0 && configuredRequests <= 24 ? configuredRequests : 4;
-let claiming = false;
+let pendingClaim: Promise<void> | undefined;
 let modelSelection = "auto";
 
 function publishModels() {
@@ -119,7 +119,10 @@ lines?.on("line", async (line) => {
     if (command.action === "cancel") { active.get(command.runId)?.abort(); return; }
     if (command.action === "parallel") { parallelLimit = command.limit; return; }
     if (command.action === "limit") { remoteLimit = command.limit; return; }
-    if (active.size + Number(claiming) >= parallelLimit) {
+    // The claim may return no job. Wait for its result before counting a slot.
+    await pendingClaim;
+    if (closed) return;
+    if (active.size >= parallelLimit) {
       send({ status: "busy", message: "Parallel request slots are full." });
       return;
     }
@@ -226,24 +229,36 @@ async function pollQueue(url: URL, token: string, local: boolean) {
       await new Promise(resolve => setTimeout(resolve, 250));
       continue;
     }
+    let releaseClaim!: () => void;
+    const claim = new Promise<void>(resolve => { releaseClaim = resolve; });
+    pendingClaim = claim;
+    let failureMessage = "Reader queue connection failed. Check whether Node.js can reach AGENT_WORKER_URL.";
     try {
-      claiming = true;
       const response = await call("claim");
       if (closed) return;
       if (response.status === 204) {
         pause = Math.min(1500, pause * 1.4);
       } else {
-        if (!response.ok) throw new Error("Cannot claim job");
+        if (!response.ok) {
+          failureMessage = response.status === 401
+            ? "Reader queue rejected the worker. Check AGENT_WORKER_SECRET on both sides."
+            : `Reader queue returned HTTP ${response.status} while claiming a task.`;
+          throw new Error("Cannot claim job");
+        }
+        failureMessage = "Reader queue returned an invalid task.";
         const job = remoteJob.parse(await response.json());
         if (closed) return;
         void processJob(job, local, call);
         pause = 50;
       }
-    } catch {
-      send({ status: "failed", message: "Reader queue unavailable. Check connection and configuration." });
+    } catch (error) {
+      send({ status: "failed", message: error instanceof Error && error.name === "TimeoutError"
+        ? "Reader queue connection timed out. Check whether Node.js can reach AGENT_WORKER_URL."
+        : failureMessage });
       pause = Math.min(15_000, Math.max(1500, pause * 2));
     } finally {
-      claiming = false;
+      pendingClaim = undefined;
+      releaseClaim();
     }
     await new Promise(resolve => setTimeout(resolve, pause));
   }
