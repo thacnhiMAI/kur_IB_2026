@@ -9,3 +9,9 @@ dist
 .next
 test-results
 playwright-report
+.env*
+.report-work
+.git-release-queue
+scripts/.report-studio*.ps1
+*.docx
+*.tsbuildinfo

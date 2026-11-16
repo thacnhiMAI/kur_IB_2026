@@ -1,11 +1,18 @@
 .next/
 node_modules/
-.env
-.env.local
-.env.production.local
 coverage/
 playwright-report/
 test-results/
 dist/
 storage/reading/
 
+.env
+.env.*
+!.env.example
+.report-work/
+.git-release-queue/
+scripts/.report-studio*.ps1
+*.docx
+*.tsbuildinfo
+__pycache__/
+.venv/
